@@ -29,7 +29,6 @@ async def create_project(
     try:
         service = ProjectService(db)
         project = await service.create(dto, current_user)
-        await db.commit()
         return SuccessResponse(data=project, message="Tạo project thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -78,7 +77,6 @@ async def update_project(
     try:
         service = ProjectService(db)
         project = await service.update(project_id, dto, current_user)
-        await db.commit()
         return SuccessResponse(data=project, message="Cập nhật thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -96,7 +94,6 @@ async def delete_project(
     try:
         service = ProjectService(db)
         result = await service.delete(project_id, current_user)
-        await db.commit()
         return SuccessResponse(data=result, message="Xóa project thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))

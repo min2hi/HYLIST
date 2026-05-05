@@ -40,7 +40,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ─── JWT ───────────────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "") -> str:
+def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "", full_name: str = "") -> str:
     """Tạo JWT access token có thời hạn."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {
@@ -48,6 +48,7 @@ def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "")
         "org_id": str(org_id),
         "role": role,
         "email": email,
+        "full_name": full_name,
         "exp": expire,
         "type": "access",
     }
@@ -69,11 +70,12 @@ def create_refresh_token(user_id: UUID) -> str:
 
 class CurrentUser:
     """Object đại diện user đã xác thực — inject qua Depends(get_current_user)."""
-    def __init__(self, id: UUID, org_id: UUID, role: str, email: str = ""):
+    def __init__(self, id: UUID, org_id: UUID, role: str, email: str = "", full_name: str = ""):
         self.id = id
         self.org_id = org_id
         self.role = role
         self.email = email
+        self.full_name = full_name
 
 
 async def get_current_user(
@@ -104,6 +106,7 @@ async def get_current_user(
             raise credentials_exception
 
         email: str = payload.get("email", "")
+        full_name: str = payload.get("full_name", "")
 
     except JWTError:
         raise credentials_exception
@@ -113,4 +116,5 @@ async def get_current_user(
         org_id=UUID(org_id),
         role=role,
         email=email,
+        full_name=full_name,
     )

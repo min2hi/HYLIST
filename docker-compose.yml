@@ -57,26 +57,50 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     depends_on:
       - prometheus
     restart: unless-stopped
 
-  # ─── FastAPI Backend (chạy khi dev hoàn chỉnh) ─────────────────────────────
-  # Uncomment khi đã có backend/Dockerfile
-  # api:
-  #   build: ./backend
-  #   container_name: hylist-api
-  #   ports:
-  #     - "8000:8000"
-  #   env_file: .env
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
+  # ─── FastAPI Backend ────────────────────────────────────────────────────────
+  api:
+    build: ./backend
+    container_name: hylist-api
+    ports:
+      - "8000:8000"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
 
-  # ─── MLflow (Phase 2 — bỏ comment khi đến tuần 5) ─────────────────────────
+  # ─── Celery Worker (Async Tasks & ML Inference) ────────────────────────────
+  celery_worker:
+    build: ./backend
+    container_name: hylist-worker
+    command: celery -A src.core.celery_app worker -l INFO
+    env_file: .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── Next.js Frontend ──────────────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: hylist-frontend
+    ports:
+      - "3000:3000"
+    env_file: ./frontend/.env.local
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # ─── MLflow (Phase 2) ───────────────────────────────────────────────────────
   # mlflow:
   #   image: ghcr.io/mlflow/mlflow:latest
   #   container_name: hylist-mlflow
@@ -86,7 +110,7 @@ services:
   #     - mlflow_data:/mlflow
   #   command: mlflow server --host 0.0.0.0 --port 5000 --default-artifact-root /mlflow
 
-  # ─── Celery Flower (Phase 2 — monitor task queue) ──────────────────────────
+  # ─── Celery Flower (Phase 2) ───────────────────────────────────────────────
   # flower:
   #   image: mher/flower:latest
   #   container_name: hylist-flower

@@ -35,7 +35,6 @@ async def register(
     try:
         service = AuthService(db)
         user = await service.register(dto)
-        await db.commit()
         return SuccessResponse(data=user, message="Đăng ký thành công! Chào mừng bạn đến HYLIST.")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
@@ -66,7 +65,7 @@ async def get_me(
         data=UserProfile(
             id=str(current_user.id),
             email=current_user.email,
-            full_name="",  # Cần query DB nếu muốn full info — đủ cho Phase 1
+            full_name=current_user.full_name,
             role=current_user.role,
             org_id=str(current_user.org_id),
         )

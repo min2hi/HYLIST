@@ -1,8 +1,12 @@
 openapi: 3.0.3
 info:
   title: HYLIST API
-  description: Intelligent Task Orchestration System API
+  description: |
+    Intelligent Task Orchestration System API.
+    Contract-first — file này là nguồn sự thật duy nhất cho API spec.
+    Frontend types được auto-gen từ file này.
   version: 1.0.0
+
 servers:
   - url: http://localhost:8000/api/v1
     description: Local development server
@@ -15,7 +19,7 @@ components:
       bearerFormat: JWT
 
   schemas:
-    # ─── Common Responses ──────────────────────────────────────────────
+    # ─── Common ──────────────────────────────────────────────────────────────
     ErrorResponse:
       type: object
       properties:
@@ -26,13 +30,29 @@ components:
           type: string
         error_code:
           type: string
+          description: Machine-readable error code (e.g. TASK_NOT_FOUND)
         details:
           type: object
-      required:
-        - success
-        - message
+      required: [success, message]
 
-    # ─── Auth & Users ──────────────────────────────────────────────────
+    # ─── Auth & Users ─────────────────────────────────────────────────────────
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        full_name:
+          type: string
+          minLength: 1
+        org_name:
+          type: string
+          minLength: 1
+      required: [email, password, full_name, org_name]
+
     LoginRequest:
       type: object
       properties:
@@ -41,9 +61,7 @@ components:
           format: email
         password:
           type: string
-      required:
-        - email
-        - password
+      required: [email, password]
 
     TokenResponse:
       type: object
@@ -61,15 +79,10 @@ components:
             token_type:
               type: string
               default: bearer
-          required:
-            - access_token
-            - refresh_token
-            - token_type
-      required:
-        - success
-        - data
+          required: [access_token, refresh_token, token_type]
+      required: [success, data]
 
-    UserResponse:
+    UserProfile:
       type: object
       properties:
         id:
@@ -77,6 +90,7 @@ components:
           format: uuid
         email:
           type: string
+          format: email
         full_name:
           type: string
         role:
@@ -85,25 +99,38 @@ components:
         org_id:
           type: string
           format: uuid
-      required:
-        - id
-        - email
-        - full_name
-        - role
-        - org_id
+      required: [id, email, full_name, role, org_id]
 
-    # ─── Projects ──────────────────────────────────────────────────────
+    # ─── Projects ────────────────────────────────────────────────────────────
     ProjectCreateRequest:
       type: object
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 255
         description:
           type: string
         color:
           type: string
-      required:
-        - name
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Hex color code (e.g. #3B82F6)
+      required: [name]
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, archived]
+        color:
+          type: string
 
     ProjectResponse:
       type: object
@@ -117,23 +144,31 @@ components:
           type: string
         status:
           type: string
+          enum: [active, paused, completed, archived]
         color:
           type: string
+        org_id:
+          type: string
+          format: uuid
+        created_by:
+          type: string
+          format: uuid
         created_at:
           type: string
           format: date-time
-      required:
-        - id
-        - name
-        - status
-        - created_at
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, name, status, org_id, created_by, created_at]
 
-    # ─── Tasks ─────────────────────────────────────────────────────────
+    # ─── Tasks ───────────────────────────────────────────────────────────────
     TaskCreateRequest:
       type: object
       properties:
         title:
           type: string
+          minLength: 1
+          maxLength: 500
         project_id:
           type: string
           format: uuid
@@ -143,18 +178,44 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+          default: 3
         estimated_time:
           type: number
           format: float
+          description: Estimated hours
         deadline:
           type: string
           format: date-time
         assignee_id:
           type: string
           format: uuid
-      required:
-        - title
-        - project_id
+      required: [title, project_id]
+
+    TaskUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, review, done, cancelled]
+        priority_score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        estimated_time:
+          type: number
+        actual_time:
+          type: number
+        assignee_id:
+          type: string
+          format: uuid
+        deadline:
+          type: string
+          format: date-time
 
     TaskResponse:
       type: object
@@ -165,6 +226,9 @@ components:
         title:
           type: string
         project_id:
+          type: string
+          format: uuid
+        org_id:
           type: string
           format: uuid
         description:
@@ -184,28 +248,76 @@ components:
           type: array
           items:
             type: string
+          description: Auto-generated by NLP (Phase 3)
+        assignee_id:
+          type: string
+          format: uuid
+        created_by:
+          type: string
+          format: uuid
+        deadline:
+          type: string
+          format: date-time
         created_at:
           type: string
           format: date-time
-      required:
-        - id
-        - title
-        - project_id
-        - status
-        - priority_score
-        - created_at
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, title, project_id, org_id, status, priority_score, created_at]
 
 security:
   - bearerAuth: []
 
 paths:
-  # ─── Auth ──────────────────────────────────────────────────────────
+  # ─── Auth ────────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      summary: Đăng ký tài khoản mới
+      description: |
+        Tạo Organization mới và User ADMIN đầu tiên.
+        Người đăng ký đầu tiên của một org sẽ là ADMIN.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Đăng ký thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+                  message:
+                    type: string
+        '409':
+          description: Email hoặc tên tổ chức đã tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /auth/login:
     post:
-      summary: User login
-      tags:
-        - Auth
-      security: [] # No auth required
+      summary: Đăng nhập
+      description: Xác thực và trả về JWT access token + refresh token.
+      tags: [Auth]
+      security: []
       requestBody:
         required: true
         content:
@@ -214,24 +326,51 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Successful login
+          description: Đăng nhập thành công
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TokenResponse'
         '401':
-          description: Unauthorized
+          description: Email hoặc mật khẩu không đúng
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  # ─── Projects ──────────────────────────────────────────────────────
+  /auth/me:
+    get:
+      summary: Lấy profile của user hiện tại
+      description: Decode JWT và trả về thông tin user đang đăng nhập.
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile của user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Token không hợp lệ hoặc hết hạn
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─── Projects ────────────────────────────────────────────────────────────────
   /projects:
     post:
-      summary: Create a new project
-      tags:
-        - Projects
+      summary: Tạo Project mới
+      tags: [Projects]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -240,7 +379,7 @@ paths:
               $ref: '#/components/schemas/ProjectCreateRequest'
       responses:
         '201':
-          description: Project created
+          description: Project đã được tạo
           content:
             application/json:
               schema:
@@ -250,13 +389,17 @@ paths:
                     type: boolean
                   data:
                     $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/schemas/ErrorResponse'
+
     get:
-      summary: List projects
-      tags:
-        - Projects
+      summary: Danh sách Projects trong Org
+      tags: [Projects]
+      security:
+        - bearerAuth: []
       responses:
         '200':
-          description: List of projects
+          description: Danh sách projects
           content:
             application/json:
               schema:
@@ -269,19 +412,94 @@ paths:
                     items:
                       $ref: '#/components/schemas/ProjectResponse'
 
-  # ─── Tasks ─────────────────────────────────────────────────────────
+  /projects/{project_id}:
+    parameters:
+      - in: path
+        name: project_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Chi tiết một Project
+      tags: [Projects]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ProjectResponse'
+        '404':
+          description: Project không tồn tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      summary: Cập nhật Project
+      tags: [Projects]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Project đã được cập nhật
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ProjectResponse'
+        '404':
+          description: Project không tồn tại
+
+    delete:
+      summary: Xóa Project (soft delete)
+      description: Chỉ ADMIN mới được phép xóa project.
+      tags: [Projects]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Project đã được xóa
+        '403':
+          description: Không đủ quyền
+        '404':
+          description: Project không tồn tại
+
+  # ─── Tasks ───────────────────────────────────────────────────────────────────
   /tasks:
     post:
-      summary: Create a new task
-      tags:
-        - Tasks
+      summary: Tạo Task mới
+      tags: [Tasks]
+      security:
+        - bearerAuth: []
       parameters:
         - in: header
           name: Idempotency-Key
           schema:
             type: string
+            format: uuid
           required: false
-          description: Key to prevent duplicate task creation
+          description: UUID để tránh tạo trùng khi client retry
       requestBody:
         required: true
         content:
@@ -290,7 +508,7 @@ paths:
               $ref: '#/components/schemas/TaskCreateRequest'
       responses:
         '201':
-          description: Task created
+          description: Task đã được tạo
           content:
             application/json:
               schema:
@@ -300,10 +518,12 @@ paths:
                     type: boolean
                   data:
                     $ref: '#/components/schemas/TaskResponse'
+
     get:
-      summary: List tasks
-      tags:
-        - Tasks
+      summary: Danh sách Tasks
+      tags: [Tasks]
+      security:
+        - bearerAuth: []
       parameters:
         - in: query
           name: project_id
@@ -311,9 +531,22 @@ paths:
             type: string
             format: uuid
           required: false
+          description: Lọc theo Project ID
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [todo, in_progress, review, done, cancelled]
+          required: false
+        - in: query
+          name: assignee_id
+          schema:
+            type: string
+            format: uuid
+          required: false
       responses:
         '200':
-          description: List of tasks
+          description: Danh sách tasks
           content:
             application/json:
               schema:
@@ -325,3 +558,73 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/TaskResponse'
+
+  /tasks/{task_id}:
+    parameters:
+      - in: path
+        name: task_id
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Chi tiết một Task
+      tags: [Tasks]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Task detail
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task không tồn tại
+
+    patch:
+      summary: Cập nhật Task
+      description: Cập nhật status, assignee, priority, v.v. Ghi AuditLog tự động.
+      tags: [Tasks]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdateRequest'
+      responses:
+        '200':
+          description: Task đã được cập nhật
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/TaskResponse'
+        '404':
+          description: Task không tồn tại
+
+    delete:
+      summary: Xóa Task (soft delete)
+      description: Yêu cầu quyền MANAGER trở lên.
+      tags: [Tasks]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Task đã được xóa
+        '403':
+          description: Không đủ quyền
+        '404':
+          description: Task không tồn tại

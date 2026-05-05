@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── Input ─────────────────────────────────────────────────────────────────────
@@ -16,6 +16,14 @@ class CreateTaskDto(BaseModel):
     deadline: datetime | None = None
     assignee_id: UUID | None = None
 
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_whitespace(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Title không được chỉ chứa khoảng trắng")
+        return stripped
+
 
 class UpdateTaskDto(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=500)
@@ -27,6 +35,16 @@ class UpdateTaskDto(BaseModel):
     deadline: datetime | None = None
     assignee_id: UUID | None = None
 
+    @field_validator("title")
+    @classmethod
+    def title_must_not_be_whitespace(cls, v: str | None) -> str | None:
+        if v is not None:
+            stripped = v.strip()
+            if not stripped:
+                raise ValueError("Title không được chỉ chứa khoảng trắng")
+            return stripped
+        return v
+
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
@@ -34,8 +52,10 @@ class TaskOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    org_id: UUID
     title: str
     project_id: UUID
+    created_by: UUID
     description: str | None
     status: str
     priority_score: int
@@ -46,3 +66,4 @@ class TaskOut(BaseModel):
     deadline: datetime | None
     created_at: datetime
     updated_at: datetime | None
+

@@ -29,7 +29,6 @@ async def create_task(
     try:
         service = TaskService(db)
         task = await service.create(dto, current_user)
-        await db.commit()
         return SuccessResponse(data=task, message="Tạo task thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -79,7 +78,6 @@ async def update_task(
     try:
         service = TaskService(db)
         task = await service.update(task_id, dto, current_user)
-        await db.commit()
         return SuccessResponse(data=task, message="Cập nhật task thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -97,7 +95,6 @@ async def delete_task(
     try:
         service = TaskService(db)
         result = await service.delete(task_id, current_user)
-        await db.commit()
         return SuccessResponse(data=result, message="Xóa task thành công")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
