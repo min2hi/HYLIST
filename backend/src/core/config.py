@@ -57,12 +57,15 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         return self.APP_ENV == "development"
 
+    @property
+    def is_testing(self) -> bool:
+        return self.APP_ENV == "test"
 
-@lru_cache
+
 def get_settings() -> Settings:
-    """Cache settings object — gọi nhiều lần chỉ load 1 lần."""
+    """Load settings từ env. Không cache để test có thể override env vars."""
     return Settings()
 
 
-# Singleton dùng trong toàn app
+# Singleton dùng trong toàn app (cache thủ công)
 settings = get_settings()

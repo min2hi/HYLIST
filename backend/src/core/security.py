@@ -40,13 +40,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 # ─── JWT ───────────────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: UUID, org_id: UUID, role: str) -> str:
+def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "") -> str:
     """Tạo JWT access token có thời hạn."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "org_id": str(org_id),
         "role": role,
+        "email": email,
         "exp": expire,
         "type": "access",
     }
@@ -102,6 +103,8 @@ async def get_current_user(
         if not user_id or not org_id or not role or token_type != "access":
             raise credentials_exception
 
+        email: str = payload.get("email", "")
+
     except JWTError:
         raise credentials_exception
 
@@ -109,4 +112,5 @@ async def get_current_user(
         id=UUID(user_id),
         org_id=UUID(org_id),
         role=role,
+        email=email,
     )

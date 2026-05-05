@@ -10,12 +10,19 @@ from ...schemas.auth import LoginRequest, RegisterRequest, TokenData, UserProfil
 from ...schemas.common import SuccessResponse
 from ...services.auth_service import AuthService
 
+from ...core.config import settings
+
 router = APIRouter(prefix="/auth", tags=["Auth"])
 limiter = Limiter(key_func=get_remote_address)
 
+import os as _os
+_IS_TEST = _os.getenv("APP_ENV") == "test"
+_REG_LIMIT = "1000/minute" if _IS_TEST else "5/minute"
+_LOGIN_LIMIT = "1000/minute" if _IS_TEST else "10/minute"
+
 
 @router.post("/register", response_model=SuccessResponse[UserProfile], status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/minute")  # Giới hạn 5 lần/phút để chống spam tạo account
+@limiter.limit(_REG_LIMIT)
 async def register(
     request: Request,
     dto: RegisterRequest,
@@ -35,7 +42,7 @@ async def register(
 
 
 @router.post("/login", response_model=SuccessResponse[TokenData])
-@limiter.limit("10/minute")  # Giới hạn 10 lần/phút để chống brute-force
+@limiter.limit(_LOGIN_LIMIT)
 async def login(
     request: Request,
     dto: LoginRequest,

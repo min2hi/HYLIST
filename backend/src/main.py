@@ -19,6 +19,8 @@ from slowapi.util import get_remote_address
 
 from .core.config import settings
 from .core.logging import get_logger, setup_logging
+from .middleware.audit_log import AuditLogMiddleware
+from .middleware.idempotency import IdempotencyMiddleware
 
 # Setup logging trước tất cả
 setup_logging()
@@ -51,6 +53,9 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
 
 # ─── Middleware (thứ tự quan trọng — thực thi từ dưới lên) ───────────────────
+# Thứ tự: CORS → Idempotency → AuditLog (outer → inner)
+app.add_middleware(AuditLogMiddleware)       # Tuần 3: ghi log mọi thay đổi
+app.add_middleware(IdempotencyMiddleware)    # Tuần 3: chống tạo trùng khi retry
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -61,8 +66,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# TODO Tuần 3: Thêm AuditLog + Idempotency middleware ở đây
 
 # ─── Prometheus Metrics ───────────────────────────────────────────────────────
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")

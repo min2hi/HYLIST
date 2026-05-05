@@ -101,6 +101,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+env = [
+    "APP_ENV=test",
+    "SECRET_KEY=test-secret-key-not-for-production",
+]
 
 [tool.ruff]
 line-length = 100

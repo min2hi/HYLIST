@@ -75,7 +75,7 @@ class AuthService:
         if not user.is_active:
             raise ValueError("Tài khoản đã bị vô hiệu hóa")
 
-        access_token = create_access_token(user.id, user.org_id, user.role)
+        access_token = create_access_token(user.id, user.org_id, user.role, email=user.email)
         refresh_token = create_refresh_token(user.id)
 
         logger.info("user_logged_in", user_id=str(user.id), org_id=str(user.org_id))
