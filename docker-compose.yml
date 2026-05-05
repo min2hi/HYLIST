@@ -1,0 +1,103 @@
+services:
+  # ─── PostgreSQL 17 (Primary Database) ──────────────────────────────────────
+  postgres:
+    image: postgres:17
+    container_name: hylist-postgres
+    environment:
+      POSTGRES_USER: hylist
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: hylist_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hylist -d hylist_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Redis 7 (Cache + Celery Broker + Idempotency) ─────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: hylist-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Prometheus (Metrics scraper) ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hylist-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    restart: unless-stopped
+
+  # ─── Grafana (Dashboards — login: admin/admin) ──────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hylist-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ─── FastAPI Backend (chạy khi dev hoàn chỉnh) ─────────────────────────────
+  # Uncomment khi đã có backend/Dockerfile
+  # api:
+  #   build: ./backend
+  #   container_name: hylist-api
+  #   ports:
+  #     - "8000:8000"
+  #   env_file: .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+
+  # ─── MLflow (Phase 2 — bỏ comment khi đến tuần 5) ─────────────────────────
+  # mlflow:
+  #   image: ghcr.io/mlflow/mlflow:latest
+  #   container_name: hylist-mlflow
+  #   ports:
+  #     - "5001:5000"
+  #   volumes:
+  #     - mlflow_data:/mlflow
+  #   command: mlflow server --host 0.0.0.0 --port 5000 --default-artifact-root /mlflow
+
+  # ─── Celery Flower (Phase 2 — monitor task queue) ──────────────────────────
+  # flower:
+  #   image: mher/flower:latest
+  #   container_name: hylist-flower
+  #   ports:
+  #     - "5555:5555"
+  #   environment:
+  #     CELERY_BROKER_URL: redis://redis:6379/0
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+  # mlflow_data:
