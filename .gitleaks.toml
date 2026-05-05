@@ -1,0 +1,23 @@
+title = "{{PROJECT_NAME}} Gitleaks Config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Allow example and documentation files"
+paths = [
+  '''.env.example''',
+  '''.env.production.example''',
+  '''README.md''',
+  '''.claude/templates/.*''',
+  '''docs/.*''',
+]
+
+[[allowlists]]
+description = "Allow placeholder strings in templates"
+regexes = [
+  '''your-secret-here''',
+  '''<YOUR_.*>''',
+  '''REPLACE_ME''',
+  '''example\.com''',
+]

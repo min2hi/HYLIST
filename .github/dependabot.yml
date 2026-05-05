@@ -1,0 +1,18 @@
+updates:
+  - package-ecosystem: "npm"
+    directory: "/{{BACKEND_DIR}}"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "backend"]
+
+  - package-ecosystem: "npm"
+    directory: "/{{FRONTEND_DIR}}"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "frontend"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels: ["dependencies", "ci"]
