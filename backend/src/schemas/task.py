@@ -1,11 +1,12 @@
 """Task schemas — theo openapi.yaml contract."""
+
 from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
 # ── Input ─────────────────────────────────────────────────────────────────────
+
 
 class CreateTaskDto(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
@@ -48,6 +49,7 @@ class UpdateTaskDto(BaseModel):
 
 # ── Output ────────────────────────────────────────────────────────────────────
 
+
 class TaskOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,4 +68,3 @@ class TaskOut(BaseModel):
     deadline: datetime | None
     created_at: datetime
     updated_at: datetime | None
-

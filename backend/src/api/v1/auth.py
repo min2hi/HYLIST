@@ -1,27 +1,29 @@
 """Auth Router — /api/v1/auth/register + /api/v1/auth/login + /api/v1/auth/me"""
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...core.database import get_db
-from ...core.security import get_current_user, CurrentUser
+from ...core.security import CurrentUser, get_current_user
 from ...schemas.auth import LoginRequest, RegisterRequest, TokenData, UserProfile
 from ...schemas.common import SuccessResponse
 from ...services.auth_service import AuthService
-
-from ...core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 limiter = Limiter(key_func=get_remote_address)
 
 import os as _os
+
 _IS_TEST = _os.getenv("APP_ENV") == "test"
 _REG_LIMIT = "1000/minute" if _IS_TEST else "5/minute"
 _LOGIN_LIMIT = "1000/minute" if _IS_TEST else "10/minute"
 
 
-@router.post("/register", response_model=SuccessResponse[UserProfile], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=SuccessResponse[UserProfile], status_code=status.HTTP_201_CREATED
+)
 @limiter.limit(_REG_LIMIT)
 async def register(
     request: Request,

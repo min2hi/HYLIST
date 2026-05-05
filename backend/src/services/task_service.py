@@ -1,4 +1,5 @@
 """Task Service — CRUD logic, multi-tenancy + ML field collection."""
+
 from datetime import datetime
 from uuid import UUID
 
@@ -6,15 +7,14 @@ import structlog
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Task, TaskStatus, User
-from ..schemas.task import CreateTaskDto, UpdateTaskDto, TaskOut
 from ..core.security import CurrentUser
+from ..models import Task, TaskStatus, User
+from ..schemas.task import CreateTaskDto, TaskOut, UpdateTaskDto
 
 logger = structlog.get_logger()
 
 
 class TaskService:
-
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -83,7 +83,7 @@ class TaskService:
     async def get_by_id(self, task_id: UUID, user: CurrentUser) -> TaskOut:
         stmt = select(Task).where(
             Task.id == task_id,
-            Task.org_id == user.org_id,   # Chặn IDOR
+            Task.org_id == user.org_id,  # Chặn IDOR
             Task.deleted_at.is_(None),
         )
         result = await self.db.execute(stmt)
@@ -126,9 +126,7 @@ class TaskService:
             return existing
 
         update_data["updated_at"] = datetime.utcnow()
-        await self.db.execute(
-            update(Task).where(Task.id == task_id).values(**update_data)
-        )
+        await self.db.execute(update(Task).where(Task.id == task_id).values(**update_data))
         await self.db.flush()
 
         logger.info("task_updated", id=str(task_id), fields=list(update_data.keys()))

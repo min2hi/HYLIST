@@ -10,6 +10,7 @@ Thứ tự khởi động:
   6. Register routers
   7. Health check endpoint (kiểm tra DB + Redis thật sự)
 """
+
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -78,13 +79,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # ty
 
 # ─── Middleware (thứ tự quan trọng — thực thi từ dưới lên theo Starlette) ────
 # Request flow: CORS → Idempotency → AuditLog → Router
-app.add_middleware(AuditLogMiddleware)       # Tuần 3: persist mọi state change vào audit_logs
-app.add_middleware(IdempotencyMiddleware)    # Tuần 3: chống tạo trùng khi client retry
+app.add_middleware(AuditLogMiddleware)  # Tuần 3: persist mọi state change vào audit_logs
+app.add_middleware(IdempotencyMiddleware)  # Tuần 3: chống tạo trùng khi client retry
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",   # Next.js dev
-        "http://localhost:8000",   # API self
+        "http://localhost:3000",  # Next.js dev
+        "http://localhost:8000",  # API self
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
@@ -96,9 +97,10 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 from .api.v1 import auth, projects, tasks  # noqa: E402
-app.include_router(auth.router,     prefix="/api/v1")
+
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
-app.include_router(tasks.router,    prefix="/api/v1")
+app.include_router(tasks.router, prefix="/api/v1")
 
 
 # ─── Health Check (Kiểm tra thật sự — không trả static response) ─────────────
@@ -127,6 +129,7 @@ async def health_check() -> dict:
     # Check PostgreSQL
     try:
         from sqlalchemy import text
+
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         db_ok = True

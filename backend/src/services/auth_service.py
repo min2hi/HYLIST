@@ -1,12 +1,19 @@
 """Auth Service — Register + Login logic."""
+
 import re
+
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..core.security import (
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+    verify_password,
+)
 from ..models import Organization, User, UserRole
 from ..schemas.auth import LoginRequest, RegisterRequest, TokenData, UserProfile
-from ..core.security import hash_password, verify_password, create_access_token, create_refresh_token
 
 logger = structlog.get_logger()
 
@@ -76,7 +83,9 @@ class AuthService:
             raise ValueError("Tài khoản đã bị vô hiệu hóa")
 
         access_token = create_access_token(
-            user.id, user.org_id, user.role,
+            user.id,
+            user.org_id,
+            user.role,
             email=user.email,
             full_name=user.full_name,
         )

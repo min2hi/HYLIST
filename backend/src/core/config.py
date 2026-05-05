@@ -2,7 +2,7 @@
 App settings — đọc từ .env file.
 Tất cả config đi qua đây, không hardcode ở nơi khác.
 """
-from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

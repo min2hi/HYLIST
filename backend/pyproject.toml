@@ -106,6 +106,13 @@ env = [
     "SECRET_KEY=test-secret-key-not-for-production",
 ]
 
+[tool.coverage.run]
+omit = [
+    "src/core/celery_app.py",
+    "src/workers/*",
+    "src/main.py",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

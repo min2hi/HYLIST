@@ -5,9 +5,12 @@ Tại sao structlog thay vì print()?
   - Tự động thêm context (timestamp, level, service)
   - Không cần thay đổi code khi đổi log destination
 """
+
 import logging
 import sys
+
 import structlog
+
 from .config import settings
 
 
@@ -48,11 +51,11 @@ def setup_logging() -> None:
 
 def get_logger(name: str = __name__) -> structlog.BoundLogger:
     """Lấy logger có context.
-    
+
     Dùng:
         logger = get_logger(__name__)
         logger.info("task_created", task_id=str(task.id), org_id=str(user.org_id))
-    
+
     KHÔNG dùng:
         print(f"Task created: {task.id}")
     """

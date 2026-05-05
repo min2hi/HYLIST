@@ -12,6 +12,7 @@ Cách dùng trong Router:
     async def me(user: CurrentUser = Depends(get_current_user)):
         return user.id
 """
+
 from enum import Enum
 
 from fastapi import Depends, HTTPException, status
@@ -20,18 +21,18 @@ from .security import CurrentUser, get_current_user
 
 
 class Role(str, Enum):
-    ADMIN   = "admin"
+    ADMIN = "admin"
     MANAGER = "manager"
-    MEMBER  = "member"
-    VIEWER  = "viewer"
+    MEMBER = "member"
+    VIEWER = "viewer"
 
 
 # Thứ tự quyền từ cao xuống thấp
 _ROLE_HIERARCHY = {
-    Role.ADMIN:   4,
+    Role.ADMIN: 4,
     Role.MANAGER: 3,
-    Role.MEMBER:  2,
-    Role.VIEWER:  1,
+    Role.MEMBER: 2,
+    Role.VIEWER: 1,
 }
 
 

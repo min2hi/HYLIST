@@ -6,7 +6,9 @@ Redis client — dùng cho:
   - Pub/Sub: trigger SSE events
   - Session store: refresh tokens
 """
-from redis.asyncio import Redis, ConnectionPool
+
+from redis.asyncio import ConnectionPool, Redis
+
 from .config import settings
 
 # Connection pool — tái sử dụng connections
@@ -27,6 +29,7 @@ async def get_redis() -> Redis:
 
 # ─── Helper functions ───────────────────────────────────────────────────────────
 
+
 async def cache_set(key: str, value: str, ttl_seconds: int = 300) -> None:
     """Lưu giá trị vào cache với TTL."""
     await redis_client.setex(key, ttl_seconds, value)
@@ -44,7 +47,7 @@ async def cache_delete(key: str) -> None:
 
 async def publish_event(channel: str, message: str) -> None:
     """Publish SSE event qua Redis Pub/Sub.
-    
+
     Dùng:
         await publish_event(f"task:{task_id}:tags_updated", json.dumps(tags))
     """

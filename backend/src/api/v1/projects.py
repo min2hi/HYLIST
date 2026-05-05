@@ -1,4 +1,5 @@
 """Projects Router — /api/v1/projects"""
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -6,11 +7,11 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ...core.auth import Role, require_role
 from ...core.database import get_db
-from ...core.security import get_current_user, CurrentUser
-from ...core.auth import require_role, Role
-from ...schemas.project import CreateProjectDto, UpdateProjectDto, ProjectOut
+from ...core.security import CurrentUser
 from ...schemas.common import SuccessResponse
+from ...schemas.project import CreateProjectDto, ProjectOut, UpdateProjectDto
 from ...services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["Projects"])

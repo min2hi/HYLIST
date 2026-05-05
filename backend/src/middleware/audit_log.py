@@ -10,15 +10,14 @@ Thiết kế (Senior pattern):
 Cách hoạt động:
   POST/PATCH/PUT/DELETE → response 2xx → extract user từ JWT → insert AuditLog
 """
+
 import asyncio
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import structlog
 from fastapi import Request, Response
 from jose import JWTError, jwt
-from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
@@ -137,7 +136,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                         entity_id=UUID(entity_id) if entity_id else uuid4(),
                         action=action_map.get(method, method.lower()),
                         ip_address=ip,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=datetime.now(UTC),
                     )
                     session.add(audit)
         except Exception as exc:

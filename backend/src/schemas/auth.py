@@ -1,8 +1,9 @@
 """Auth schemas — Login, Register, Token."""
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-
 # ── Input ─────────────────────────────────────────────────────────────────────
+
 
 class RegisterRequest(BaseModel):
     email: EmailStr
@@ -17,6 +18,7 @@ class LoginRequest(BaseModel):
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
+
 
 class TokenData(BaseModel):
     access_token: str

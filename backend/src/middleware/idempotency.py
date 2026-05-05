@@ -11,6 +11,7 @@ Tại sao cần:
   - Mobile app mất mạng, bấm "Tạo Task" 3 lần → sẽ không bị tạo 3 task
   - Đúng chuẩn RFC 7231 idempotency
 """
+
 import json
 
 import structlog
@@ -53,6 +54,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         # Thử đọc từ Redis
         try:
             from ..core.redis import redis_client
+
             cached = await redis_client.get(cache_key)
 
             if cached:

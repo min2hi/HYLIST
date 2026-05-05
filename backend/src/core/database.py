@@ -7,6 +7,7 @@ Pattern quan trọng:
   - session.begin(): auto-commit khi thành công, auto-rollback khi exception
   - KHÔNG gọi session.commit() trong service — context manager lo
 """
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -21,11 +22,11 @@ from .config import settings
 # Engine: quản lý connection pool đến PostgreSQL
 engine = create_async_engine(
     settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,          # Số connections giữ sẵn
-    max_overflow=settings.DB_MAX_OVERFLOW,     # Cho phép tạo thêm khi cần
-    pool_pre_ping=True,                        # Ping DB trước khi dùng connection
-    pool_recycle=3600,                         # Recycle connection sau 1 giờ
-    echo=settings.is_development,             # Log SQL queries khi dev
+    pool_size=settings.DB_POOL_SIZE,  # Số connections giữ sẵn
+    max_overflow=settings.DB_MAX_OVERFLOW,  # Cho phép tạo thêm khi cần
+    pool_pre_ping=True,  # Ping DB trước khi dùng connection
+    pool_recycle=3600,  # Recycle connection sau 1 giờ
+    echo=settings.is_development,  # Log SQL queries khi dev
 )
 
 # Session factory
@@ -37,13 +38,14 @@ AsyncSessionLocal = async_sessionmaker(
 
 class Base(DeclarativeBase):
     """Base class cho tất cả SQLAlchemy models."""
+
     pass
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI Dependency — inject vào Router.
-    
+
     Session lifecycle:
       1. Tạo session
       2. Bắt đầu transaction (session.begin())
@@ -51,7 +53,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       4. Nếu không có exception → commit tự động
       5. Nếu có exception → rollback tự động
       6. Đóng session
-    
+
     Dùng:
         @router.get("/tasks")
         async def get_tasks(db: AsyncSession = Depends(get_db)):

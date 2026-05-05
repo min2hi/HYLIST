@@ -6,13 +6,14 @@ Flow:
   2. Mọi request protected → Authorization: Bearer <token>
   3. get_current_user() decode token → lấy user info
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from jose import JWTError, jwt
 import bcrypt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 
 from .config import settings
 
@@ -22,27 +23,31 @@ bearer_scheme = HTTPBearer()
 
 # ─── Password ──────────────────────────────────────────────────────────────────
 
+
 def hash_password(plain: str) -> str:
     """Hash mật khẩu trước khi lưu DB. Không lưu plain text."""
     salt = bcrypt.gensalt()
     # Chuyển đổi thành bytes, băm, rồi decode lại thành chuỗi utf-8 để lưu DB
-    hashed = bcrypt.hashpw(plain.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    hashed = bcrypt.hashpw(plain.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """So sánh mật khẩu nhập vào với hash trong DB."""
     try:
-        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
 
 
 # ─── JWT ───────────────────────────────────────────────────────────────────────
 
-def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "", full_name: str = "") -> str:
+
+def create_access_token(
+    user_id: UUID, org_id: UUID, role: str, email: str = "", full_name: str = ""
+) -> str:
     """Tạo JWT access token có thời hạn."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {
         "sub": str(user_id),
         "org_id": str(org_id),
@@ -57,7 +62,7 @@ def create_access_token(user_id: UUID, org_id: UUID, role: str, email: str = "",
 
 def create_refresh_token(user_id: UUID) -> str:
     """Tạo refresh token dài hạn hơn."""
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         "sub": str(user_id),
         "exp": expire,
@@ -68,8 +73,10 @@ def create_refresh_token(user_id: UUID) -> str:
 
 # ─── Current User Dependency ────────────────────────────────────────────────────
 
+
 class CurrentUser:
     """Object đại diện user đã xác thực — inject qua Depends(get_current_user)."""
+
     def __init__(self, id: UUID, org_id: UUID, role: str, email: str = "", full_name: str = ""):
         self.id = id
         self.org_id = org_id
@@ -83,7 +90,7 @@ async def get_current_user(
 ) -> CurrentUser:
     """
     FastAPI Dependency — decode JWT và trả về CurrentUser.
-    
+
     Dùng:
         @router.get("/tasks")
         async def get_tasks(user: CurrentUser = Depends(get_current_user)):
