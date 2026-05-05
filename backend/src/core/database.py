@@ -18,16 +18,26 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
+from sqlalchemy.pool import NullPool
 
-# Engine: quản lý connection pool đến PostgreSQL
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,  # Số connections giữ sẵn
-    max_overflow=settings.DB_MAX_OVERFLOW,  # Cho phép tạo thêm khi cần
-    pool_pre_ping=True,  # Ping DB trước khi dùng connection
-    pool_recycle=3600,  # Recycle connection sau 1 giờ
-    echo=settings.is_development,  # Log SQL queries khi dev
-)
+# Setup engine arguments, exclude pool arguments for sqlite
+engine_kwargs = {
+    "pool_pre_ping": True,
+    "pool_recycle": 3600,
+    "echo": settings.is_development,
+}
+
+if "sqlite" not in settings.DATABASE_URL:
+    engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
+    engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
+else:
+    engine_kwargs["poolclass"] = NullPool
+    # Remove unsupported arguments for NullPool
+    engine_kwargs.pop("pool_pre_ping", None)
+    engine_kwargs.pop("pool_recycle", None)
+
+# Engine: quản lý connection pool đến DB
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
 
 # Session factory
 AsyncSessionLocal = async_sessionmaker(
