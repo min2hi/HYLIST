@@ -69,10 +69,10 @@ Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 # TODO Tuần 2: Import và register routers
-# from .api.v1 import auth, tasks, projects
-# app.include_router(auth.router,     prefix="/api/v1", tags=["auth"])
-# app.include_router(tasks.router,    prefix="/api/v1", tags=["tasks"])
-# app.include_router(projects.router, prefix="/api/v1", tags=["projects"])
+from .api.v1 import auth, projects, tasks
+app.include_router(auth.router,     prefix="/api/v1")
+app.include_router(projects.router, prefix="/api/v1")
+app.include_router(tasks.router,    prefix="/api/v1")
 
 
 # ─── Health Check ─────────────────────────────────────────────────────────────

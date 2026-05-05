@@ -1,0 +1,327 @@
+openapi: 3.0.3
+info:
+  title: HYLIST API
+  description: Intelligent Task Orchestration System API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ─── Common Responses ──────────────────────────────────────────────
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: false
+        message:
+          type: string
+        error_code:
+          type: string
+        details:
+          type: object
+      required:
+        - success
+        - message
+
+    # ─── Auth & Users ──────────────────────────────────────────────────
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    TokenResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          default: true
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            token_type:
+              type: string
+              default: bearer
+          required:
+            - access_token
+            - refresh_token
+            - token_type
+      required:
+        - success
+        - data
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [admin, manager, member, viewer]
+        org_id:
+          type: string
+          format: uuid
+      required:
+        - id
+        - email
+        - full_name
+        - role
+        - org_id
+
+    # ─── Projects ──────────────────────────────────────────────────────
+    ProjectCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        color:
+          type: string
+      required:
+        - name
+
+    ProjectResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+        color:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - status
+        - created_at
+
+    # ─── Tasks ─────────────────────────────────────────────────────────
+    TaskCreateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        project_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        priority_score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        estimated_time:
+          type: number
+          format: float
+        deadline:
+          type: string
+          format: date-time
+        assignee_id:
+          type: string
+          format: uuid
+      required:
+        - title
+        - project_id
+
+    TaskResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        project_id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        status:
+          type: string
+          enum: [todo, in_progress, review, done, cancelled]
+        priority_score:
+          type: integer
+        estimated_time:
+          type: number
+          format: float
+        actual_time:
+          type: number
+          format: float
+        tags:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - project_id
+        - status
+        - priority_score
+        - created_at
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ─── Auth ──────────────────────────────────────────────────────────
+  /auth/login:
+    post:
+      summary: User login
+      tags:
+        - Auth
+      security: [] # No auth required
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─── Projects ──────────────────────────────────────────────────────
+  /projects:
+    post:
+      summary: Create a new project
+      tags:
+        - Projects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/ProjectResponse'
+    get:
+      summary: List projects
+      tags:
+        - Projects
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectResponse'
+
+  # ─── Tasks ─────────────────────────────────────────────────────────
+  /tasks:
+    post:
+      summary: Create a new task
+      tags:
+        - Tasks
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
+          description: Key to prevent duplicate task creation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreateRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/TaskResponse'
+    get:
+      summary: List tasks
+      tags:
+        - Tasks
+      parameters:
+        - in: query
+          name: project_id
+          schema:
+            type: string
+            format: uuid
+          required: false
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskResponse'

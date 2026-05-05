@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
     # ─── Database ─────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://hylist:secret@localhost:5432/hylist_db"
+    DATABASE_URL: str = "postgresql+asyncpg://hylist:hylist_password@localhost:5433/hylist_db"
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
 

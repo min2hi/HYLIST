@@ -10,14 +10,11 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from .config import settings
-
-# Password hashing với bcrypt
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT bearer scheme
 bearer_scheme = HTTPBearer()
@@ -27,12 +24,18 @@ bearer_scheme = HTTPBearer()
 
 def hash_password(plain: str) -> str:
     """Hash mật khẩu trước khi lưu DB. Không lưu plain text."""
-    return pwd_context.hash(plain)
+    salt = bcrypt.gensalt()
+    # Chuyển đổi thành bytes, băm, rồi decode lại thành chuỗi utf-8 để lưu DB
+    hashed = bcrypt.hashpw(plain.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
     """So sánh mật khẩu nhập vào với hash trong DB."""
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
+    except Exception:
+        return False
 
 
 # ─── JWT ───────────────────────────────────────────────────────────────────────
