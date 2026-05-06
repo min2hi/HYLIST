@@ -115,8 +115,8 @@ async def get_current_user(
         email: str = payload.get("email", "")
         full_name: str = payload.get("full_name", "")
 
-    except JWTError:
-        raise credentials_exception
+    except JWTError as err:
+        raise credentials_exception from err
 
     return CurrentUser(
         id=UUID(user_id),

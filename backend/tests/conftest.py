@@ -2,31 +2,36 @@
 conftest.py — Test fixtures.
 
 Kiến trúc:
-  - Unit tests (test_auth_service): inject db_session trực tiếp vào Service
-  - Integration tests (test_auth_api): dùng HTTP client, app tự quản lý DB session
+  - Dùng SQLite in-memory (StaticPool) độc lập hoàn toàn với app's engine.
+  - Unit tests: inject db_session trực tiếp vào Service.
+  - Integration tests: override get_db để dùng cùng SQLite engine đã có tables.
 """
+
 import asyncio
 import os
 from typing import AsyncGenerator
 
 # MUST set before importing anything from src
 os.environ["APP_ENV"] = "test"
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from src.main import app
 from src.core.database import Base, get_db
 from src.core.security import hash_password, create_access_token
 from src.models import Organization, User, UserRole
 
-TEST_DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://hylist:hylist_password@localhost:5433/hylist_db"
-)
+# ── Shared SQLite Engine dùng StaticPool ─────────────────────────────────────
+# StaticPool buộc tất cả connections dùng chung 1 DB in-memory.
+# Điều này đảm bảo unit test và integration test thấy cùng data.
+
+SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture(scope="session")
@@ -36,16 +41,24 @@ def event_loop():
     loop.close()
 
 
-# ── Engine cho Unit Tests (inject vào service trực tiếp) ─────────────────────
-
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    """Session-scoped engine — tables tạo 1 lần, dùng xuyên suốt test session."""
+    engine = create_async_engine(
+        SQLITE_URL,
+        echo=False,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
+
+# ── DB Session cho Unit Tests ─────────────────────────────────────────────────
 
 @pytest_asyncio.fixture
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
@@ -56,17 +69,30 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
 
 
-# ── HTTP Client cho Integration Tests (app tự quản lý connection) ─────────────
+# ── HTTP Client cho Integration Tests ────────────────────────────────────────
 
 @pytest_asyncio.fixture
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     """
-    AsyncClient gọi app qua ASGI transport.
-    App dùng connection pool riêng — không xung đột với unit test session.
+    AsyncClient với app đã được override get_db → dùng cùng SQLite engine,
+    đảm bảo integration tests không gặp 'no such table'.
     """
+    SessionLocal = async_sessionmaker(test_engine, expire_on_commit=False)
+
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async with SessionLocal() as session:
+            async with session.begin():
+                try:
+                    yield session
+                except Exception:
+                    await session.rollback()
+                    raise
+
+    app.dependency_overrides[get_db] = override_get_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+    app.dependency_overrides.clear()
 
 
 # ── Shared Data Fixtures ───────────────────────────────────────────────────────

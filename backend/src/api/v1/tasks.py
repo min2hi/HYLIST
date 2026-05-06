@@ -32,7 +32,7 @@ async def create_task(
         task = await service.create(dto, current_user)
         return SuccessResponse(data=task, message="Tạo task thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/", response_model=SuccessResponse[list[TaskOut]])
@@ -63,7 +63,7 @@ async def get_task(
         task = await service.get_by_id(task_id, current_user)
         return SuccessResponse(data=task)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.patch("/{task_id}", response_model=SuccessResponse[TaskOut])
@@ -81,7 +81,7 @@ async def update_task(
         task = await service.update(task_id, dto, current_user)
         return SuccessResponse(data=task, message="Cập nhật task thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.delete("/{task_id}", response_model=SuccessResponse[dict])
@@ -98,4 +98,4 @@ async def delete_task(
         result = await service.delete(task_id, current_user)
         return SuccessResponse(data=result, message="Xóa task thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

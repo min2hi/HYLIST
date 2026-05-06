@@ -32,7 +32,7 @@ async def create_project(
         project = await service.create(dto, current_user)
         return SuccessResponse(data=project, message="Tạo project thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/", response_model=SuccessResponse[list[ProjectOut]])
@@ -62,7 +62,7 @@ async def get_project(
         project = await service.get_by_id(project_id, current_user)
         return SuccessResponse(data=project)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.patch("/{project_id}", response_model=SuccessResponse[ProjectOut])
@@ -80,7 +80,7 @@ async def update_project(
         project = await service.update(project_id, dto, current_user)
         return SuccessResponse(data=project, message="Cập nhật thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.delete("/{project_id}", response_model=SuccessResponse[dict])
@@ -97,4 +97,4 @@ async def delete_project(
         result = await service.delete(project_id, current_user)
         return SuccessResponse(data=result, message="Xóa project thành công")
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

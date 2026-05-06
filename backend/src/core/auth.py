@@ -20,7 +20,8 @@ from fastapi import Depends, HTTPException, status
 from .security import CurrentUser, get_current_user
 
 
-class Role(str, Enum):
+class Role(str, Enum):  # noqa: UP042
+    # Keep str+Enum for Pydantic v2 serialization compatibility
     ADMIN = "admin"
     MANAGER = "manager"
     MEMBER = "member"

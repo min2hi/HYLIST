@@ -119,7 +119,13 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "N", "UP", "B", "S"]
-ignore = ["S101"]   # assert is fine in tests
+ignore = [
+    "S101",   # assert is fine in tests
+    "B008",   # FastAPI Depends/Query in function args is the intended pattern
+    "S104",   # 0.0.0.0 binding is intentional for containerized services
+    "S105",   # hardcoded secret placeholders are fine in config defaults
+    "UP046",  # Generic[T] subclass — keep for Pydantic v2 compatibility
+]
 
 [tool.mypy]
 python_version = "3.12"

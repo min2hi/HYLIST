@@ -56,6 +56,10 @@ async def lifespan(app: FastAPI):
     )
     yield
     logger.info("app_shutting_down")
+    # Dispose connection pool to avoid "Event loop is closed" errors
+    from .core.database import engine
+
+    await engine.dispose()
 
 
 # ─── Rate Limiter ─────────────────────────────────────────────────────────────

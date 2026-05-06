@@ -16,9 +16,9 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 from .config import settings
-from sqlalchemy.pool import NullPool
 
 # Setup engine arguments, exclude pool arguments for sqlite
 engine_kwargs = {

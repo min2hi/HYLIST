@@ -8,11 +8,12 @@ Quy tắc thiết kế (từ backend/SKILL.md):
 """
 
 import enum
+import json
 from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
-    ARRAY,
+    JSON,
     Boolean,
     DateTime,
     Float,
@@ -23,23 +24,46 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from ..core.database import Base
+
+
+class JSONList(TypeDecorator):
+    """
+    Custom type để lưu list[str] dưới dạng JSON.
+    - Với PostgreSQL: tận dụng native JSON support.
+    - Với SQLite (test): serialize thành JSON string.
+    Dùng thay thế ARRAY(String) để cross-database compatible.
+    """
+
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        return value  # JSON handles serialization
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
 
 # ─── Enums ─────────────────────────────────────────────────────────────────────
 
 
-class UserRole(str, enum.Enum):
+class UserRole(str, enum.Enum):  # noqa: UP042
     ADMIN = "admin"  # Xóa org, manage users
     MANAGER = "manager"  # Manage projects, assign tasks
     MEMBER = "member"  # CRUD tasks của bản thân
     VIEWER = "viewer"  # Read-only
 
 
-class TaskStatus(str, enum.Enum):
+class TaskStatus(str, enum.Enum):  # noqa: UP042
     TODO = "todo"
     IN_PROGRESS = "in_progress"
     REVIEW = "review"
@@ -47,7 +71,7 @@ class TaskStatus(str, enum.Enum):
     CANCELLED = "cancelled"
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(str, enum.Enum):  # noqa: UP042
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
@@ -215,9 +239,7 @@ class Task(Base):
     )
 
     # ─── NLP Output (Phase 3 sẽ điền) ───────────────────────────────────────
-    tags: Mapped[list[str] | None] = mapped_column(
-        ARRAY(String), nullable=True
-    )  # ["Bug", "Frontend"]
+    tags: Mapped[list[str] | None] = mapped_column(JSONList, nullable=True)  # ["Bug", "Frontend"]
     nlp_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # ─── Privacy / GDPR ──────────────────────────────────────────────────────
@@ -280,8 +302,8 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # "created", "updated", "deleted", "status_changed"
-    old_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Trạng thái trước
-    new_value: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # Trạng thái sau
+    old_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Trạng thái trước
+    new_value: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Trạng thái sau
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
