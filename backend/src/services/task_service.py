@@ -1,6 +1,6 @@
 """Task Service — CRUD logic, multi-tenancy + ML field collection."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -31,10 +31,13 @@ class TaskService:
             if row and row.max_task_capacity > 0:
                 assignee_workload = row.current_task_count / row.max_task_capacity
 
+        # FIX SEC-2: Dùng datetime.now(UTC) thay vì datetime.utcnow() (deprecated Python 3.12)
+        now = datetime.now(UTC)
+
         # Tính deadline_buffer_hrs (ML feature)
         deadline_buffer_hrs = None
         if dto.deadline:
-            delta = dto.deadline - datetime.utcnow()
+            delta = dto.deadline - now
             deadline_buffer_hrs = delta.total_seconds() / 3600
 
         task = Task(
@@ -97,6 +100,9 @@ class TaskService:
     async def update(self, task_id: UUID, dto: UpdateTaskDto, user: CurrentUser) -> TaskOut:
         existing = await self.get_by_id(task_id, user)
 
+        # FIX SEC-2: datetime.now(UTC) thay cho datetime.utcnow()
+        now = datetime.now(UTC)
+
         update_data: dict = {}
         if dto.title is not None:
             update_data["title"] = dto.title.strip()
@@ -107,10 +113,10 @@ class TaskService:
             update_data["status"] = dto.status
             # Ghi nhận thời điểm status đổi lần đầu (ML field)
             if not existing.updated_at:
-                update_data["first_status_change_at"] = datetime.utcnow()
+                update_data["first_status_change_at"] = now
             # Nếu xong task — ghi actual completion time
             if dto.status == TaskStatus.DONE:
-                update_data["completed_at"] = datetime.utcnow()
+                update_data["completed_at"] = now
         if dto.priority_score is not None:
             update_data["priority_score"] = dto.priority_score
         if dto.estimated_time is not None:
@@ -125,7 +131,7 @@ class TaskService:
         if not update_data:
             return existing
 
-        update_data["updated_at"] = datetime.utcnow()
+        update_data["updated_at"] = now
         await self.db.execute(update(Task).where(Task.id == task_id).values(**update_data))
         await self.db.flush()
 
@@ -136,8 +142,9 @@ class TaskService:
     async def delete(self, task_id: UUID, user: CurrentUser) -> dict:
         await self.get_by_id(task_id, user)
 
+        # FIX SEC-2: datetime.now(UTC)
         await self.db.execute(
-            update(Task).where(Task.id == task_id).values(deleted_at=datetime.utcnow())
+            update(Task).where(Task.id == task_id).values(deleted_at=datetime.now(UTC))
         )
         await self.db.flush()
 

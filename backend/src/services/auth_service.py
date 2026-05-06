@@ -4,6 +4,7 @@ import re
 
 import structlog
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.security import (
@@ -27,6 +28,9 @@ class AuthService:
         """
         Tạo Organization mới + Admin user đầu tiên.
         Người đăng ký đầu tiên sẽ là ADMIN của org đó.
+
+        FIX ARCH-4: Slug uniqueness được đảm bảo bằng DB UNIQUE constraint
+        + bắt IntegrityError thay vì chỉ dùng SELECT-then-INSERT (TOCTOU race condition).
         """
         # 1. Kiểm tra email đã tồn tại chưa
         existing = await self.db.execute(select(User).where(User.email == dto.email))
@@ -35,27 +39,34 @@ class AuthService:
 
         # 2. Tạo slug cho org từ tên
         slug = re.sub(r"[^a-z0-9]+", "-", dto.org_name.lower()).strip("-")
-        slug_check = await self.db.execute(select(Organization).where(Organization.slug == slug))
-        if slug_check.scalar_one_or_none():
-            raise ValueError("Tên tổ chức này đã tồn tại, vui lòng chọn tên khác")
 
-        # 3. Tạo Organization
-        org = Organization(name=dto.org_name, slug=slug)
-        self.db.add(org)
-        await self.db.flush()  # Lấy org.id
+        # 3. Tạo Organization + User trong cùng một transaction
+        # Không dùng SELECT-then-INSERT nữa → dùng try/except IntegrityError
+        # để handle race condition khi 2 request cùng tạo org cùng lúc
+        try:
+            org = Organization(name=dto.org_name, slug=slug)
+            self.db.add(org)
+            await self.db.flush()  # Lấy org.id, trigger UNIQUE check
 
-        # 4. Tạo User ADMIN đầu tiên
-        user = User(
-            org_id=org.id,
-            email=dto.email,
-            hashed_password=hash_password(dto.password),
-            full_name=dto.full_name,
-            role=UserRole.ADMIN,
-            is_active=True,
-            is_verified=True,
-        )
-        self.db.add(user)
-        await self.db.flush()
+            user = User(
+                org_id=org.id,
+                email=dto.email,
+                hashed_password=hash_password(dto.password),
+                full_name=dto.full_name,
+                role=UserRole.ADMIN,
+                is_active=True,
+                is_verified=True,
+            )
+            self.db.add(user)
+            await self.db.flush()
+
+        except IntegrityError as exc:
+            await self.db.rollback()
+            # Phân biệt lỗi email trùng vs slug trùng
+            error_str = str(exc.orig).lower()
+            if "email" in error_str or "users" in error_str:
+                raise ValueError("Email này đã được đăng ký") from exc
+            raise ValueError("Tên tổ chức này đã tồn tại, vui lòng chọn tên khác") from exc
 
         logger.info("user_registered", user_id=str(user.id), org_id=str(org.id), email=dto.email)
 

@@ -16,7 +16,7 @@ class TestAuthRegister:
         """POST /auth/register → 201 với user data."""
         response = await client.post("/api/v1/auth/register", json={
             "email": unique_email("register"),
-            "password": "secure_pass_123",
+            "password": "SecurePass123",
             "full_name": "Integration User",
             "org_name": f"Corp-{uuid.uuid4().hex[:6]}",
         })
@@ -30,7 +30,7 @@ class TestAuthRegister:
         """POST /auth/register với email không hợp lệ → 422."""
         response = await client.post("/api/v1/auth/register", json={
             "email": "not-an-email",
-            "password": "secure_pass_123",
+            "password": "SecurePass123",
             "full_name": "Test",
             "org_name": "Test Corp",
         })
@@ -63,7 +63,7 @@ class TestAuthLogin:
         """POST /auth/login với đúng credentials → 200 + tokens."""
         email = unique_email("login")
         org = f"login-corp-{uuid.uuid4().hex[:6]}"
-        password = "secure_pass_123"
+        password = "SecurePass123"
 
         # Tạo tài khoản trước
         reg = await client.post("/api/v1/auth/register", json={
@@ -101,7 +101,7 @@ class TestAuthMe:
         """GET /auth/me với token hợp lệ → 200 + profile."""
         email = unique_email("me")
         org = f"me-corp-{uuid.uuid4().hex[:6]}"
-        password = "secure_pass_123"
+        password = "SecurePass123"
 
         # Tạo tài khoản và lấy token
         await client.post("/api/v1/auth/register", json={

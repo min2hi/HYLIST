@@ -37,7 +37,7 @@ class TestAuthService:
         service = AuthService(db)
         dto = RegisterRequest(
             email="newuser@example.com",
-            password="secure_password_123",
+            password="SecurePass123",
             full_name="New User",
             org_name="New Corp",
         )
@@ -63,7 +63,7 @@ class TestAuthService:
         service = AuthService(db)
         dto = RegisterRequest(
             email="duplicate@example.com",
-            password="another_password",
+            password="AnotherPass1",
             full_name="Duplicate",
             org_name="Another Corp",
         )
