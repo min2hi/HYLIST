@@ -2,13 +2,16 @@ name: CI — Test & Lint
 
 on:
   push:
-    branches: [main, develop]
+    branches: [develop, "feat/**", "fix/**", "refactor/**", "chore/**"]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
+
+# Không chạy CI khi push thẳng lên main.
+# main chỉ nhận code qua PR đã được CI approve.
 
 jobs:
   security:
-    name: 🔐 Security Scan (Gitleaks)
+    name: 🔐 Security Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +22,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   test:
-    name: 🧪 Backend Tests (Python)
+    name: 🧪 Backend Tests
     needs: [security]
     runs-on: ubuntu-latest
 
@@ -41,6 +44,8 @@ jobs:
       - name: Run tests with coverage
         working-directory: backend
         env:
+          # DATABASE_URL không cần thiết với lazy engine + override_engine()
+          # nhưng giữ lại để đảm bảo settings.py không throw validation error
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           APP_ENV: "test"
@@ -84,3 +89,19 @@ jobs:
       - name: Ruff format check
         working-directory: backend
         run: ruff format --check src/
+
+  # Job tổng hợp — Branch Protection chỉ cần check job này.
+  # Nếu tất cả jobs trên xanh → ci-pass xanh → PR được merge.
+  ci-pass:
+    name: ✅ CI Pass
+    needs: [test, lint]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ CI failed — PR cannot be merged"
+            exit 1
+          fi
+          echo "✅ All checks passed — PR is ready to merge"
