@@ -127,6 +127,11 @@ ignore = [
     "UP046",  # Generic[T] subclass — keep for Pydantic v2 compatibility
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# models/__init__.py dùng Unicode box-drawing comments (─────) để phân tách sections.
+# Các comment separator này dài hơn 100 chars là có chủ đích, không phải code thật.
+"src/models/__init__.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
