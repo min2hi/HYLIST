@@ -58,6 +58,60 @@
 8. Xóa các comment hướng dẫn
 ```
 
+## Git Workflow — BẮT BUỘC (Không có ngoại lệ)
+
+> **main là nhánh PRODUCTION. KHÔNG BAO GIỜ push thẳng lên main.**
+> Mọi thay đổi, dù nhỏ đến đâu, phải đi qua Pull Request.
+
+### Quy Trình Bắt Buộc
+
+```
+1. Tạo nhánh từ develop (hoặc main nếu chưa có develop):
+     git checkout -b feat/<tên-tính-năng>     # Feature mới
+     git checkout -b fix/<mô-tả-bug>          # Bug fix
+     git checkout -b refactor/<phạm-vi>       # Refactor
+     git checkout -b chore/<tên>              # Config, CI, docs
+
+2. Code + commit theo Conventional Commits:
+     git commit -m "feat(auth): add refresh token rotation"
+     git commit -m "fix(db): handle NullPool for SQLite in tests"
+
+3. Push nhánh phụ (KHÔNG phải main):
+     git push origin feat/<tên-tính-năng>
+
+4. Tạo Pull Request trên GitHub → target: main hoặc develop
+
+5. Đợi CI xanh (🔐 Security + 🧪 Tests + 🔍 Lint) → ✅ CI Pass
+
+6. Self-review diff một lần → điền PR checklist → Merge
+
+7. Xóa nhánh sau khi merge (GitHub tự làm nếu bật tùy chọn)
+```
+
+### Naming Convention
+
+| Loại | Prefix | Ví dụ |
+|------|--------|-------|
+| Feature | `feat/` | `feat/ml-priority-predictor` |
+| Bug fix | `fix/` | `fix/no-such-table-sqlite` |
+| Refactor | `refactor/` | `refactor/lazy-engine-factory` |
+| Hotfix | `hotfix/` | `hotfix/jwt-expiry-critical` |
+| CI/Infra | `chore/` | `chore/add-branch-protection` |
+
+### AI KHÔNG ĐƯỢC
+
+```
+❌  git push origin main
+❌  git push origin master
+❌  Commit thẳng lên main dù bằng cách nào
+❌  Bỏ qua CI failure và force merge
+
+✅  git push origin feat/<tên>
+✅  Tạo PR → đợi CI xanh → merge
+```
+
+
+
 ## Hard Limits — Giới Hạn Cứng Cho AI
 
 | Loại task | Tối đa dòng thay đổi | Tối đa commit |

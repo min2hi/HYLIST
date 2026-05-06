@@ -1,0 +1,38 @@
+#!/bin/sh
+# pre-push hook — Chặn push trực tiếp lên nhánh main/master.
+#
+# Cài đặt tự động: scripts/setup-hooks.sh
+# Cài đặt thủ công: cp .husky/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Triết lý: main là nhánh PRODUCTION. Mọi thay đổi PHẢI đi qua PR.
+# Không có ngoại lệ, kể cả khi làm một mình.
+
+PROTECTED_BRANCHES="main master"
+CURRENT_BRANCH=$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')
+
+for protected in $PROTECTED_BRANCHES; do
+    if [ "$CURRENT_BRANCH" = "$protected" ]; then
+        echo ""
+        echo "╔══════════════════════════════════════════════════════════════╗"
+        echo "║  🚫  DIRECT PUSH TO '$protected' IS NOT ALLOWED             ║"
+        echo "╠══════════════════════════════════════════════════════════════╣"
+        echo "║                                                              ║"
+        echo "║  '$protected' là nhánh protected. Mọi thay đổi phải qua PR. ║"
+        echo "║                                                              ║"
+        echo "║  Quy trình đúng:                                             ║"
+        echo "║    1. git checkout -b feat/<tên-tính-năng>                   ║"
+        echo "║    2. git add . && git commit -m 'feat: ...'                 ║"
+        echo "║    3. git push origin feat/<tên-tính-năng>                   ║"
+        echo "║    4. Tạo Pull Request trên GitHub                           ║"
+        echo "║    5. Đợi CI xanh → Merge PR                                ║"
+        echo "║                                                              ║"
+        echo "║  Nếu khẩn cấp cần push (hotfix):                            ║"
+        echo "║    git push origin main --no-verify  (BẮT BUỘC có lý do)   ║"
+        echo "║                                                              ║"
+        echo "╚══════════════════════════════════════════════════════════════╝"
+        echo ""
+        exit 1
+    fi
+done
+
+exit 0
