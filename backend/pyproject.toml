@@ -18,7 +18,7 @@ dependencies = [
     "alembic>=1.13.0",          # Database migrations
 
     # ─── Validation ─────────────────────────────────────────────────────
-    "pydantic>=2.7.0",
+    "pydantic[email]>=2.7.0",
     "pydantic-settings>=2.3.0",
 
     # ─── Auth ───────────────────────────────────────────────────────────
