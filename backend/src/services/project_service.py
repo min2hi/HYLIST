@@ -1,6 +1,6 @@
 """Project Service — CRUD logic, multi-tenancy enforced."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 import structlog
@@ -78,7 +78,8 @@ class ProjectService:
         if not update_data:
             return await self.get_by_id(project_id, user)
 
-        update_data["updated_at"] = datetime.utcnow()
+        # FIX SEC-2: datetime.now(UTC) thay cho datetime.utcnow() (deprecated Python 3.12)
+        update_data["updated_at"] = datetime.now(UTC)
         await self.db.execute(update(Project).where(Project.id == project_id).values(**update_data))
         await self.db.flush()
 
@@ -89,8 +90,9 @@ class ProjectService:
     async def delete(self, project_id: UUID, user: CurrentUser) -> dict:
         await self.get_by_id(project_id, user)
 
+        # FIX SEC-2: datetime.now(UTC)
         await self.db.execute(
-            update(Project).where(Project.id == project_id).values(deleted_at=datetime.utcnow())
+            update(Project).where(Project.id == project_id).values(deleted_at=datetime.now(UTC))
         )
         await self.db.flush()
 

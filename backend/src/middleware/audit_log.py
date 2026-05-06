@@ -31,6 +31,15 @@ AUDITED_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
 # Bỏ qua các path hệ thống
 SKIP_PATHS = {"/health", "/metrics", "/", "/docs", "/openapi.json", "/redoc", "/favicon.ico"}
 
+# Mapping resource name → entity_type (explicit, không dùng string manipulation)
+# Khi thêm resource mới → thêm vào dict này
+_RESOURCE_TO_ENTITY: dict[str, str] = {
+    "tasks": "task",
+    "projects": "project",
+    "users": "user",
+    # Phase 2+: thêm "predictions": "prediction", "reports": "report" ...
+}
+
 
 class AuditLogMiddleware(BaseHTTPMiddleware):
     """
@@ -98,19 +107,20 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         Insert audit record vào DB dùng session riêng (không dùng session của request).
         Fail silently — lỗi audit không ảnh hưởng user experience.
         """
-        # Import ở đây tránh circular import
-        from ..core.database import AsyncSessionLocal
+        # FIX SEC-1: Dùng get_session_factory() thay vì AsyncSessionLocal đã bị xóa
+        from ..core.database import get_session_factory
         from ..models import AuditLog
 
         path_parts = path.strip("/").split("/")
         entity_type: str | None = None
         entity_id: str | None = None
 
-        # Extract entity info từ URL pattern: /api/v1/{resource}/{id}
-        resource_names = {"tasks", "projects", "users"}
+        # FIX ARCH-3: Explicit mapping thay vì string manipulation fragile
+        # Trước: entity_type = part.rstrip("s")  → vỡ khi có /api/v1/ml/predictions
+        # Sau: dùng dict mapping rõ ràng, dễ extend
         for i, part in enumerate(path_parts):
-            if part in resource_names:
-                entity_type = part.rstrip("s")  # "tasks" → "task"
+            if part in _RESOURCE_TO_ENTITY:
+                entity_type = _RESOURCE_TO_ENTITY[part]
                 if i + 1 < len(path_parts):
                     try:
                         entity_id = str(UUID(path_parts[i + 1]))
@@ -126,7 +136,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         }
 
         try:
-            async with AsyncSessionLocal() as session:
+            async with get_session_factory()() as session:
                 async with session.begin():
                     audit = AuditLog(
                         id=uuid4(),
