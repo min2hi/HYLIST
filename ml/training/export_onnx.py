@@ -32,7 +32,7 @@ from onnxmltools.convert.common.data_types import FloatTensorType
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType as SKL2ONNXFloat
 
-from ml.features.task_extractor import TaskFeatureExtractor
+from ml.features.task_extractor import FEATURE_VERSION, TaskFeatureExtractor
 
 MODELS_DIR = _REPO_ROOT / "ml" / "models"
 PKL_PATH = MODELS_DIR / "priority_predictor_v1.pkl"
@@ -99,12 +99,18 @@ def export_to_onnx(model, n_features: int) -> None:
     onnx.checker.check_model(onnx_model)
     print("   ONNX model validated OK")
 
-    # Save
+    # Save ONNX
     with open(ONNX_PATH, "wb") as f:
         f.write(onnx_model.SerializeToString())
 
     size_kb = ONNX_PATH.stat().st_size / 1024
     print(f"[SAVE] ONNX model saved: {ONNX_PATH} ({size_kb:.1f} KB)")
+
+    # Buoc 4: Luu XGBoost native format (.ubj) de dung cho SHAP Explainer
+    # .ubj (Universal Binary JSON) la format an toan, khong dung pickle -> Tuan thu ADR-002
+    UBJ_PATH = MODELS_DIR / f"priority_predictor_{FEATURE_VERSION}.ubj"
+    booster.save_model(str(UBJ_PATH))
+    print(f"[SAVE] XGBoost native model (for SHAP) saved: {UBJ_PATH}")
 
 
 def verify_parity(model, onnx_path: Path, n_features: int) -> None:
@@ -175,10 +181,11 @@ def benchmark_latency(onnx_path: Path, n_features: int) -> None:
 
 
 def update_metadata(onnx_path: Path) -> None:
-    """Cap nhat feature_names_v1.json voi duong dan ONNX model."""
+    """Cap nhat feature_names_v1.json voi duong dan ONNX va UBJ model."""
     if META_PATH.exists():
         meta = json.loads(META_PATH.read_text(encoding="utf-8"))
         meta["onnx_model_path"] = str(onnx_path)
+        meta["ubj_model_path"] = str(MODELS_DIR / f"priority_predictor_{FEATURE_VERSION}.ubj")
         meta["onnx_exported"] = True
         META_PATH.write_text(json.dumps(meta, indent=2, ensure_ascii=False))
         print(f"\n[SAVE] Metadata updated: {META_PATH}")

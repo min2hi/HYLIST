@@ -1,0 +1,15 @@
+{
+  "is_research": "0.8583703",
+  "deadline_buffer_hrs": "0.023905756",
+  "description_length": "0.018529572",
+  "is_feature": "0.018440314",
+  "is_bug": "0.018329186",
+  "priority_score": "0.01821623",
+  "title_length": "0.017860763",
+  "is_urgent": "0.014149661",
+  "is_overdue": "0.0121982265",
+  "has_description": "0.0",
+  "has_deadline": "0.0",
+  "assignee_workload": "0.0",
+  "revision_count": "0.0"
+}

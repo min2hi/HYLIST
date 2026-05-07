@@ -267,6 +267,7 @@ class Task(Base):
         "User", foreign_keys=[assignee_id], back_populates="assigned_tasks"
     )
     audit_logs: Mapped[list["AuditLog"]] = relationship("AuditLog", back_populates="task")
+    ml_predictions: Mapped[list["MLPrediction"]] = relationship("MLPrediction", back_populates="task")
 
     __table_args__ = (
         Index("ix_tasks_org_id", "org_id"),
@@ -324,6 +325,55 @@ class AuditLog(Base):
 
 
 # â”€â”€â”€ Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+
+# --- MLPrediction (Phase 2 - Shadow Mode) ------------------------------------
+
+
+class MLPrediction(Base):
+    """
+    Luu ket qua ML prediction theo Shadow Mode.
+
+    Shadow Mode:
+      - Model chay inference background sau khi task duoc tao
+      - Ket qua KHONG hien thi cho user ngay (chua tin tuong)
+      - Khi task DONE -> actual_time -> error = actual - predicted
+      - Dung de danh gia chinh xac truoc khi promote model moi
+    """
+
+    __tablename__ = "ml_predictions"
+
+    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("tasks.id"), nullable=False
+    )
+    org_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("organizations.id"), nullable=False
+    )
+    model_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    feature_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    predicted_hours: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    fallback: Mapped[bool] = mapped_column(Boolean, default=False)
+    latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
+    shap_values: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    shap_base_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    actual_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    task: Mapped["Task"] = relationship("Task", back_populates="ml_predictions")
+
+    __table_args__ = (
+        Index("ix_ml_predictions_task_id", "task_id"),
+        Index("ix_ml_predictions_org_id", "org_id"),
+        Index("ix_ml_predictions_model_version", "model_version"),
+        Index("ix_ml_predictions_created_at", "created_at"),
+    )
+
 __all__ = [
     "Base",
     "Organization",
@@ -331,6 +381,7 @@ __all__ = [
     "Project",
     "Task",
     "AuditLog",
+    "MLPrediction",
     "UserRole",
     "TaskStatus",
     "ProjectStatus",

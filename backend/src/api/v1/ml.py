@@ -30,6 +30,8 @@ class PredictResponse(BaseModel):
     model_version: str
     latency_ms: float
     fallback: bool
+    shap_values: dict[str, float] | None = None
+    shap_base_value: float | None = None
 
 
 class MLHealthResponse(BaseModel):
@@ -71,9 +73,9 @@ async def predict_task_time(
 
     - Lay task data tu DB (filter theo org_id de dam bao multi-tenancy)
     - Chay ONNX inference qua MLService singleton
-    - Shadow mode: log prediction, khong ghi vao task (Tuan 8)
+    - Shadow mode: log prediction, luu vao ml_predictions table
 
-    Returns: predicted_hours, confidence, model_version, latency_ms
+    Returns: predicted_hours, confidence, model_version, latency_ms, shap_values
     """
     # Lay task tu DB — filter org_id (multi-tenancy + IDOR prevention)
     result = await db.execute(
@@ -106,7 +108,23 @@ async def predict_task_time(
     # Inference
     prediction: PredictionResult = await ml_service.predict(task_data)
 
-    # TODO Tuan 8: luu vao ml_predictions table (shadow mode)
+    # Luu vao ml_predictions table (shadow mode)
+    from ...models import MLPrediction
+    
+    ml_pred = MLPrediction(
+        task_id=task_id,
+        org_id=task.org_id,
+        model_version=prediction.model_version,
+        feature_version=prediction.model_version,
+        predicted_hours=prediction.predicted_hours,
+        confidence=prediction.confidence,
+        fallback=prediction.fallback,
+        latency_ms=prediction.latency_ms,
+        shap_values=prediction.shap_values,
+        shap_base_value=prediction.shap_base_value,
+    )
+    db.add(ml_pred)
+    await db.commit()
 
     payload = PredictResponse(
         task_id=str(task_id),
@@ -115,6 +133,8 @@ async def predict_task_time(
         model_version=prediction.model_version,
         latency_ms=prediction.latency_ms,
         fallback=prediction.fallback,
+        shap_values=prediction.shap_values,
+        shap_base_value=prediction.shap_base_value,
     )
 
     return SuccessResponse(

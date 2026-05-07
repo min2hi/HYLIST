@@ -59,6 +59,8 @@ def predict_task_priority(self, task_id: str, task_data: dict) -> dict:
             "model_version": prediction.model_version,
             "latency_ms": prediction.latency_ms,
             "fallback": prediction.fallback,
+            "shap_values": prediction.shap_values,
+            "shap_base_value": prediction.shap_base_value,
             "status": "success",
         }
 
@@ -70,8 +72,32 @@ def predict_task_priority(self, task_id: str, task_data: dict) -> dict:
             fallback=prediction.fallback,
         )
 
-        # TODO Tuan 8: luu vao ml_predictions table (shadow mode)
-        # _save_shadow_prediction(task_id, result)
+        # Luu vao ml_predictions table (Shadow mode)
+        from src.core.database import get_db_context
+        from src.models import MLPrediction
+
+        async def _save_shadow():
+            async with get_db_context() as db:
+                ml_pred = MLPrediction(
+                    task_id=task_id,
+                    org_id=task_data["org_id"],  # Can task_data co org_id
+                    model_version=prediction.model_version,
+                    feature_version=prediction.model_version,  # Thuong giong nhau
+                    predicted_hours=prediction.predicted_hours,
+                    confidence=prediction.confidence,
+                    fallback=prediction.fallback,
+                    latency_ms=prediction.latency_ms,
+                    shap_values=prediction.shap_values,
+                    shap_base_value=prediction.shap_base_value,
+                )
+                db.add(ml_pred)
+                await db.commit()
+
+        loop = asyncio.new_event_loop()
+        try:
+            loop.run_until_complete(_save_shadow())
+        finally:
+            loop.close()
 
         return result
 

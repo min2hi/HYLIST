@@ -48,6 +48,8 @@ class PredictionResult:
         "model_version",
         "latency_ms",
         "fallback",
+        "shap_values",
+        "shap_base_value",
     )
 
     def __init__(
@@ -57,12 +59,16 @@ class PredictionResult:
         model_version: str,
         latency_ms: float,
         fallback: bool = False,
+        shap_values: dict[str, float] | None = None,
+        shap_base_value: float | None = None,
     ) -> None:
         self.predicted_hours = predicted_hours
         self.confidence = confidence
         self.model_version = model_version
         self.latency_ms = latency_ms
         self.fallback = fallback  # True neu dung rule-based (model chua co)
+        self.shap_values = shap_values
+        self.shap_base_value = shap_base_value
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -71,6 +77,8 @@ class PredictionResult:
             "model_version": self.model_version,
             "latency_ms": round(self.latency_ms, 2),
             "fallback": self.fallback,
+            "shap_values": self.shap_values,
+            "shap_base_value": self.shap_base_value,
         }
 
 
@@ -82,6 +90,7 @@ class MLService:
 
     _instance: MLService | None = None
     _session: Any = None  # onnxruntime.InferenceSession
+    _explainer: Any = None  # shap.TreeExplainer
     _extractor: TaskFeatureExtractor
     _model_version: str = "unknown"
     _input_name: str = "float_input"
@@ -124,9 +133,24 @@ class MLService:
             self._input_name = self._session.get_inputs()[0].name
 
             # Doc metadata
+            ubj_path = None
             if _META_PATH.exists():
                 meta = json.loads(_META_PATH.read_text(encoding="utf-8"))
                 self._model_version = meta.get("feature_version", "v1")
+                ubj_path = meta.get("ubj_model_path")
+
+            # Khoi tao SHAP Explainer voi UBJ model
+            if ubj_path and Path(ubj_path).exists():
+                try:
+                    import shap
+                    import xgboost as xgb
+
+                    booster = xgb.Booster()
+                    booster.load_model(ubj_path)
+                    self._explainer = shap.TreeExplainer(booster)
+                    logger.info("shap_explainer_loaded", path=ubj_path)
+                except Exception as e:
+                    logger.error("shap_explainer_failed", error=str(e))
 
             logger.info(
                 "ml_model_loaded",
@@ -174,7 +198,23 @@ class MLService:
 
             latency_ms = (time.perf_counter() - t_start) * 1000
 
-            # Confidence: heuristic don gian (se thay bang SHAP Tuan 8)
+            # SHAP Explanations
+            shap_values = None
+            shap_base = None
+            if self._explainer is not None:
+                # TreeExplainer nhan numpy array truc tiep
+                shap_res = self._explainer(features_f32)
+                # values.shape = (1, 13) -> lay row 0
+                sv = shap_res.values[0]
+                base = shap_res.base_values[0]
+                shap_base = float(base)
+                # Map feature values (lam tron 4 chu so de JSON nhe)
+                shap_values = {
+                    feat: round(float(val), 4)
+                    for feat, val in zip(self._extractor.FEATURE_NAMES, sv)
+                }
+
+            # Confidence: heuristic don gian (co the dung SHAP variance sau)
             # Low priority + no deadline = low confidence
             priority = float(task_data.get("priority_score", 3))
             confidence = min(0.95, 0.5 + (priority - 1) * 0.1)
@@ -191,6 +231,8 @@ class MLService:
                 confidence=confidence,
                 model_version=self._model_version,
                 latency_ms=latency_ms,
+                shap_values=shap_values,
+                shap_base_value=shap_base,
             )
 
         except Exception as e:

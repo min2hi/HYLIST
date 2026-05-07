@@ -1,0 +1,22 @@
+artifact_path: file:D:/StudioProjects/HYLIST/mlruns/1/models/m-5fa8546f5a7844af9676e91dd0112a60/artifacts
+flavors:
+  python_function:
+    data: model.ubj
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.xgboost
+    python_version: 3.13.1
+  xgboost:
+    code: null
+    data: model.ubj
+    model_class: xgboost.sklearn.XGBRegressor
+    model_format: ubj
+    xgb_version: 3.2.0
+mlflow_version: 3.12.0
+model_id: m-5fa8546f5a7844af9676e91dd0112a60
+model_size_bytes: 936549
+model_uuid: m-5fa8546f5a7844af9676e91dd0112a60
+prompts: null
+run_id: ff7767830e58462bb30a7372dff9f822
+utc_time_created: '2026-05-07 04:01:22.580788'
