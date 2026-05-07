@@ -1,0 +1,46 @@
+{
+  "feature_version": "v1",
+  "feature_names": [
+    "priority_score",
+    "has_description",
+    "description_length",
+    "title_length",
+    "has_deadline",
+    "deadline_buffer_hrs",
+    "is_overdue",
+    "assignee_workload",
+    "revision_count",
+    "is_bug",
+    "is_feature",
+    "is_urgent",
+    "is_research"
+  ],
+  "target": "actual_time",
+  "target_unit": "hours",
+  "mlflow_run_id": "eee3c1fb4d06411782c2c95ff2344570",
+  "metrics": {
+    "test_mae": 2.9092170857311634,
+    "test_rmse": 4.438949962647935,
+    "test_r2": 0.15271414188537447,
+    "test_samples": 979,
+    "cv_mae_mean": 2.9754398863419653,
+    "cv_mae_std": 0.03291383133751249,
+    "cv_rmse_mean": 4.341811065696881,
+    "cv_rmse_std": 0.13956131062688495
+  },
+  "xgboost_params": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "gamma": 0.1,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror",
+    "eval_metric": "mae",
+    "random_state": 42,
+    "n_jobs": -1
+  }
+}
