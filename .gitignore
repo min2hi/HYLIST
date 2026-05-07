@@ -20,7 +20,15 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
-# ML model binaries (use DVC instead)
+# ML model binaries (track via DVC, not git)
 ml/models/*.pkl
+ml/models/*.onnx
+ml/models/*.ubj
+ml/models/mlflow.db
+
+# MLflow tracking data (generated at runtime, too large for git)
+mlruns/
 ml/mlruns/
 
+# Temporary one-off scripts (should never be committed)
+_*.py

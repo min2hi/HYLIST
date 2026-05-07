@@ -10,6 +10,7 @@ Pattern quan trọng:
 """
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -108,6 +109,28 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         @router.get("/tasks")
         async def get_tasks(db: AsyncSession = Depends(get_db)):
             ...
+    """
+    async with get_session_factory()() as session:
+        async with session.begin():
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
+
+
+@asynccontextmanager
+async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Async context manager cho DB session — dùng trong Celery worker.
+
+    Celery task không có FastAPI Depends, cần tự quản lý session.
+    Pattern này mirror get_db() nhưng dùng được trong sýc context thường.
+
+    Dùng:
+        async with get_db_context() as db:
+            db.add(record)
+            await db.commit()
     """
     async with get_session_factory()() as session:
         async with session.begin():
