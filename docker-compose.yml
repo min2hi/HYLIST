@@ -100,28 +100,32 @@ services:
       - api
     restart: unless-stopped
 
-  # ─── MLflow (Phase 2) ───────────────────────────────────────────────────────
-  # mlflow:
-  #   image: ghcr.io/mlflow/mlflow:latest
-  #   container_name: hylist-mlflow
-  #   ports:
-  #     - "5001:5000"
-  #   volumes:
-  #     - mlflow_data:/mlflow
-  #   command: mlflow server --host 0.0.0.0 --port 5000 --default-artifact-root /mlflow
+  # ─── MLflow (Phase 2 — Experiment Tracking) ──────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: hylist-mlflow
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow --default-artifact-root /mlflow
+    restart: unless-stopped
 
-  # ─── Celery Flower (Phase 2) ───────────────────────────────────────────────
-  # flower:
-  #   image: mher/flower:latest
-  #   container_name: hylist-flower
-  #   ports:
-  #     - "5555:5555"
-  #   environment:
-  #     CELERY_BROKER_URL: redis://redis:6379/0
+  # ─── Celery Flower (Phase 2 — Worker Monitoring) ──────────────────────────
+  flower:
+    image: mher/flower:latest
+    container_name: hylist-flower
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
   prometheus_data:
   grafana_data:
-  # mlflow_data:
+  mlflow_data:

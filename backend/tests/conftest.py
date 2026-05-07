@@ -12,12 +12,22 @@ Kiến trúc:
 
 import asyncio
 import os
+import sys
+from pathlib import Path
 from typing import AsyncGenerator
+
+# Thêm thư mục gốc repo (HYLIST/) vào sys.path để tests/ml/ có thể import ml/
+# conftest.py nằm tại: backend/tests/conftest.py
+# REPO_ROOT = HYLIST/
+_REPO_ROOT = Path(__file__).parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 # Set trước khi import src — chỉ cần APP_ENV và SECRET_KEY
 # DATABASE_URL không cần set ở đây vì dùng override_engine() thay thế
 os.environ["APP_ENV"] = "test"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+
 
 import pytest
 import pytest_asyncio

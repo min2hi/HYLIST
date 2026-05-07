@@ -19,3 +19,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# ML model binaries (use DVC instead)
+ml/models/*.pkl
+ml/mlruns/
+

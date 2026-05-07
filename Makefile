@@ -48,11 +48,25 @@ test-contract:              ## Contract tests với OpenAPI spec
 	schemathesis run --checks all openapi.yaml --base-url http://localhost:8000
 
 # ─── Code Quality ─────────────────────────────────────────────────────────────
+format:                     ## Auto-format + fix lint: chay truoc khi commit
+	cd backend && ruff format src/ && ruff check src/ --fix
+	@echo "Format done. Ready to commit."
+
+check:                      ## Kiem tra format + lint (mirror CI) — khong sua file
+	cd backend && ruff format --check src/ && ruff check src/
+
 lint:                       ## Lint + type check
 	cd backend && ruff check src/ && mypy src/
 
-format:                     ## Auto-format code
-	cd backend && ruff format src/ && ruff check --fix src/
+ci:                         ## Chay toan bo CI local: format-check + lint + tests
+	@echo "=== [CI Local] ruff format ==="
+	cd backend && ruff format --check src/
+	@echo "=== [CI Local] ruff lint ==="
+	cd backend && ruff check src/
+	@echo "=== [CI Local] pytest ==="
+	cd backend && pytest tests/ --cov=src --cov-fail-under=70 -q
+	@echo ""
+	@echo "CI Local: ALL PASSED"
 
 # ─── ML Pipeline ──────────────────────────────────────────────────────────────
 mock-data:                  ## Sinh 10k mock tasks (cần chạy trước khi train)
