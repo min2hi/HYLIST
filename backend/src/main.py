@@ -54,6 +54,9 @@ async def lifespan(app: FastAPI):
         host=settings.APP_HOST,
         port=settings.APP_PORT,
     )
+    # Load ONNX model vao memory khi app start
+    from .services.ml_service import ml_service
+    ml_service.initialize()
     yield
     logger.info("app_shutting_down")
     # Dispose connection pool to avoid "Event loop is closed" errors
@@ -100,11 +103,12 @@ app.add_middleware(
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-from .api.v1 import auth, projects, tasks  # noqa: E402
+from .api.v1 import auth, ml, projects, tasks  # noqa: E402
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(ml.router, prefix="/api/v1")
 
 
 # ─── Health Check (Kiểm tra thật sự — không trả static response) ─────────────

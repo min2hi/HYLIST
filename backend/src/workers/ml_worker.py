@@ -1,8 +1,12 @@
 """
-Celery worker tasks for Machine Learning operations (Phase 2 placeholder).
-"""
+Celery worker tasks for Machine Learning operations — Phase 2.
 
-import time
+Task: predict_task_priority
+  - Trigger: sau khi Task duoc tao (post-create hook tu task_service)
+  - Action: chay ONNX inference via MLService
+  - Shadow mode: luu ket qua vao ml_predictions table (Tuan 8)
+  - Retry: max 3 lan voi exponential backoff
+"""
 
 import structlog
 
@@ -11,31 +15,72 @@ from src.core.celery_app import celery_app
 logger = structlog.get_logger(__name__)
 
 
-@celery_app.task(name="ml.predict_task_priority", bind=True, max_retries=3)
-def predict_task_priority(self, task_id: str) -> dict:
+@celery_app.task(
+    name="ml.predict_task_priority",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=5,  # giay
+)
+def predict_task_priority(self, task_id: str, task_data: dict) -> dict:
     """
-    Dummy ML prediction task for Phase 1 -> 2 transition.
-    Sẽ được thay thế bằng code gọi XGBoost Model thật ở Phase 2.
+    Async ML prediction task.
+
+    Args:
+        task_id: UUID cua task can predict
+        task_data: dict chua fields cua task (title, description, priority_score, ...)
+                   Truyen truc tiep de tranh 1 round-trip DB trong worker
+
+    Returns:
+        dict: {task_id, predicted_hours, confidence, model_version, fallback}
     """
-    logger.info("ml_predict_started", task_id=task_id)
+    import asyncio
 
-    # Simulate inference delay (50ms - 200ms)
-    time.sleep(0.1)
+    logger.info("ml_worker_predict_started", task_id=task_id)
 
-    # Placeholder response
-    predicted_priority = 3
-    confidence = 0.85
+    try:
+        # Import day du khi worker chay (lazy import tranh circular)
+        from src.services.ml_service import ml_service
 
-    logger.info(
-        "ml_predict_finished",
-        task_id=task_id,
-        predicted_priority=predicted_priority,
-        confidence=confidence,
-    )
+        # Dam bao model da duoc initialize trong worker process
+        if not ml_service._initialized:
+            ml_service.initialize()
 
-    return {
-        "task_id": task_id,
-        "predicted_priority": predicted_priority,
-        "confidence": confidence,
-        "status": "success",
-    }
+        # Chay inference (async method trong sync celery task)
+        loop = asyncio.new_event_loop()
+        try:
+            prediction = loop.run_until_complete(ml_service.predict(task_data))
+        finally:
+            loop.close()
+
+        result = {
+            "task_id": task_id,
+            "predicted_hours": prediction.predicted_hours,
+            "confidence": prediction.confidence,
+            "model_version": prediction.model_version,
+            "latency_ms": prediction.latency_ms,
+            "fallback": prediction.fallback,
+            "status": "success",
+        }
+
+        logger.info(
+            "ml_worker_predict_done",
+            task_id=task_id,
+            predicted_hours=prediction.predicted_hours,
+            confidence=prediction.confidence,
+            fallback=prediction.fallback,
+        )
+
+        # TODO Tuan 8: luu vao ml_predictions table (shadow mode)
+        # _save_shadow_prediction(task_id, result)
+
+        return result
+
+    except Exception as exc:
+        logger.error(
+            "ml_worker_predict_failed",
+            task_id=task_id,
+            error=str(exc),
+            retry_count=self.request.retries,
+        )
+        # Retry voi exponential backoff
+        raise self.retry(exc=exc, countdown=5 * (2 ** self.request.retries)) from exc
