@@ -4,17 +4,26 @@ Parity Tests: XGBoost Native vs ONNX Runtime
 Muc dich:
 Dam bao rang khi model chay trong moi truong production (ONNX Runtime, C++ backend)
 se cho ket qua hoan toan giong voi moi truong training (XGBoost Python).
-Day la buoc kiem tra "Training-Serving Skew" quan trong nhat truoc khi deploy.
+Day la buoc kiem tra Training-Serving Skew quan trong nhat truoc khi deploy.
+
+Note: Yeu cau ML deps (pandas, xgboost, onnxruntime, shap).
+      CI backend-only se tu dong skip module nay.
 """
 
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 
-from src.services.ml_service import ml_service
-from ml.features.task_extractor import TaskFeatureExtractor
+# Skip module neu ML deps chua duoc install (CI backend-only)
+pytest.importorskip("pandas", reason="ML deps not installed (ml/requirements.txt)")
+pytest.importorskip("xgboost", reason="ML deps not installed (ml/requirements.txt)")
+pytest.importorskip("onnxruntime", reason="ML deps not installed (ml/requirements.txt)")
+
+import numpy as np  # noqa: E402
+
+from src.services.ml_service import ml_service  # noqa: E402
+from ml.features.task_extractor import TaskFeatureExtractor  # noqa: E402
 
 # Thu muc chua model da train
 _MODELS_DIR = Path(__file__).parent.parent.parent.parent / "ml" / "models"

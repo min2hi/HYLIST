@@ -1,22 +1,29 @@
 """
 Tests cho TaskFeatureExtractor — HYLIST Phase 2.
 
-Nguyên tắc:
-    - Test mọi feature logic trong _extract_single()
-    - Test cả dict path (serving) lẫn DataFrame path (training)
+Nguyen tac:
+    - Test moi feature logic trong _extract_single()
+    - Test ca dict path (serving) lan DataFrame path (training)
     - Test edge cases: None, NaN, missing fields
     - Test tags parsing: JSON list, comma-separated, None
 
 Run: pytest backend/tests/ml/test_extractor.py -v
+
+Note: Yeu cau ML deps (pandas, scikit-learn).
+      CI backend-only se tu dong skip module nay.
 """
 
-from datetime import UTC, datetime, timedelta
-
-import numpy as np
-import pandas as pd
 import pytest
 
-from ml.features.task_extractor import FEATURE_VERSION, TaskFeatureExtractor
+# Skip module neu ML deps chua duoc install (CI backend-only)
+pd = pytest.importorskip("pandas", reason="ML deps not installed (ml/requirements.txt)")
+pytest.importorskip("sklearn", reason="ML deps not installed (ml/requirements.txt)")
+
+from datetime import UTC, datetime, timedelta  # noqa: E402
+
+import numpy as np  # noqa: E402
+
+from ml.features.task_extractor import FEATURE_VERSION, TaskFeatureExtractor  # noqa: E402
 
 
 @pytest.fixture

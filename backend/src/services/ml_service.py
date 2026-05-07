@@ -24,11 +24,8 @@ from typing import Any
 import numpy as np
 import structlog
 
-_ML_ROOT = Path(__file__).parent.parent.parent.parent  # HYLIST/
-if str(_ML_ROOT) not in _sys.path:
-    _sys.path.insert(0, str(_ML_ROOT))
-
-from ml.features.task_extractor import TaskFeatureExtractor  # noqa: E402
+# TaskFeatureExtractor duoc import lazy ben trong initialize()
+# Tranh keo pandas vao CI khi collect test (pandas nam trong ml/requirements.txt)
 
 logger = structlog.get_logger(__name__)
 
@@ -91,7 +88,7 @@ class MLService:
     _instance: MLService | None = None
     _session: Any = None  # onnxruntime.InferenceSession
     _explainer: Any = None  # shap.TreeExplainer
-    _extractor: TaskFeatureExtractor
+    _extractor: Any = None  # TaskFeatureExtractor (lazy import)
     _model_version: str = "unknown"
     _input_name: str = "float_input"
 
@@ -108,6 +105,13 @@ class MLService:
         """
         if self._initialized:
             return
+
+        # Lazy import — tranh keo pandas vao CI khi chi install backend deps
+        _ml_root = Path(__file__).parent.parent.parent.parent  # HYLIST/
+        if str(_ml_root) not in _sys.path:
+            _sys.path.insert(0, str(_ml_root))
+
+        from ml.features.task_extractor import TaskFeatureExtractor  # noqa: PLC0415
 
         self._extractor = TaskFeatureExtractor()
 
@@ -211,7 +215,7 @@ class MLService:
                 # Map feature values (lam tron 4 chu so de JSON nhe)
                 shap_values = {
                     feat: round(float(val), 4)
-                    for feat, val in zip(self._extractor.FEATURE_NAMES, sv)
+                    for feat, val in zip(self._extractor.FEATURE_NAMES, sv, strict=False)
                 }
 
             # Confidence: heuristic don gian (co the dung SHAP variance sau)

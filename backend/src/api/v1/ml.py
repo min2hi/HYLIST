@@ -110,7 +110,7 @@ async def predict_task_time(
 
     # Luu vao ml_predictions table (shadow mode)
     from ...models import MLPrediction
-    
+
     ml_pred = MLPrediction(
         task_id=task_id,
         org_id=task.org_id,
