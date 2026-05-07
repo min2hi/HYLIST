@@ -109,4 +109,4 @@ def predict_task_priority(self, task_id: str, task_data: dict) -> dict:
             retry_count=self.request.retries,
         )
         # Retry voi exponential backoff
-        raise self.retry(exc=exc, countdown=5 * (2 ** self.request.retries)) from exc
+        raise self.retry(exc=exc, countdown=5 * (2**self.request.retries)) from exc

@@ -11,6 +11,7 @@ Su dung:
   ml_service = MLService()
   result = await ml_service.predict(task_data_dict)
 """
+
 from __future__ import annotations
 
 import json
@@ -243,9 +244,7 @@ class MLService:
             logger.error("ml_inference_failed", error=str(e))
             return self._rule_based_fallback(task_data, t_start)
 
-    def _rule_based_fallback(
-        self, task_data: dict[str, Any], t_start: float
-    ) -> PredictionResult:
+    def _rule_based_fallback(self, task_data: dict[str, Any], t_start: float) -> PredictionResult:
         """
         Fallback khi ONNX model chua co hoac bi loi.
         Rule don gian dua tren priority_score.

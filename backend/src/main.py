@@ -56,6 +56,7 @@ async def lifespan(app: FastAPI):
     )
     # Load ONNX model vao memory khi app start
     from .services.ml_service import ml_service
+
     ml_service.initialize()
     yield
     logger.info("app_shutting_down")

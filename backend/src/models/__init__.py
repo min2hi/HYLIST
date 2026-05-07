@@ -267,7 +267,9 @@ class Task(Base):
         "User", foreign_keys=[assignee_id], back_populates="assigned_tasks"
     )
     audit_logs: Mapped[list["AuditLog"]] = relationship("AuditLog", back_populates="task")
-    ml_predictions: Mapped[list["MLPrediction"]] = relationship("MLPrediction", back_populates="task")
+    ml_predictions: Mapped[list["MLPrediction"]] = relationship(
+        "MLPrediction", back_populates="task"
+    )
 
     __table_args__ = (
         Index("ix_tasks_org_id", "org_id"),
@@ -361,9 +363,7 @@ class MLPrediction(Base):
     actual_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     error_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     task: Mapped["Task"] = relationship("Task", back_populates="ml_predictions")
 
@@ -373,6 +373,7 @@ class MLPrediction(Base):
         Index("ix_ml_predictions_model_version", "model_version"),
         Index("ix_ml_predictions_created_at", "created_at"),
     )
+
 
 __all__ = [
     "Base",

@@ -1,11 +1,20 @@
 #!/bin/sh
-# pre-push hook — Chặn push trực tiếp lên nhánh main/master.
+# pre-push hook — Chay truoc moi git push de dam bao code chat luong.
 #
-# Cài đặt tự động: scripts/setup-hooks.sh
-# Cài đặt thủ công: cp .husky/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+# Kiem tra:
+#   1. Chặn push thẳng lên main/master (protected branch policy)
+#   2. ruff format --check  (formatting)
+#   3. ruff check           (lint)
 #
-# Triết lý: main là nhánh PRODUCTION. Mọi thay đổi PHẢI đi qua PR.
-# Không có ngoại lệ, kể cả khi làm một mình.
+# Cai dat:
+#   Tu dong: scripts/setup-hooks.sh
+#   Thu cong: cp .husky/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+#
+# Triet ly: Bat loi som tai local — khong de CI la noi phat hien loi format/lint dau tien.
+
+set -e
+
+# ─── 1. Chăn push lên nhánh protected ────────────────────────────────────────
 
 PROTECTED_BRANCHES="main master"
 CURRENT_BRANCH=$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')
@@ -13,26 +22,85 @@ CURRENT_BRANCH=$(git symbolic-ref HEAD 2>/dev/null | sed 's|refs/heads/||')
 for protected in $PROTECTED_BRANCHES; do
     if [ "$CURRENT_BRANCH" = "$protected" ]; then
         echo ""
-        echo "╔══════════════════════════════════════════════════════════════╗"
-        echo "║  🚫  DIRECT PUSH TO '$protected' IS NOT ALLOWED             ║"
-        echo "╠══════════════════════════════════════════════════════════════╣"
-        echo "║                                                              ║"
-        echo "║  '$protected' là nhánh protected. Mọi thay đổi phải qua PR. ║"
-        echo "║                                                              ║"
-        echo "║  Quy trình đúng:                                             ║"
-        echo "║    1. git checkout -b feat/<tên-tính-năng>                   ║"
-        echo "║    2. git add . && git commit -m 'feat: ...'                 ║"
-        echo "║    3. git push origin feat/<tên-tính-năng>                   ║"
-        echo "║    4. Tạo Pull Request trên GitHub                           ║"
-        echo "║    5. Đợi CI xanh → Merge PR                                ║"
-        echo "║                                                              ║"
-        echo "║  Nếu khẩn cấp cần push (hotfix):                            ║"
-        echo "║    git push origin main --no-verify  (BẮT BUỘC có lý do)   ║"
-        echo "║                                                              ║"
-        echo "╚══════════════════════════════════════════════════════════════╝"
+        echo "======================================================================"
+        echo "  DIRECT PUSH TO '$protected' IS NOT ALLOWED"
+        echo "======================================================================"
+        echo ""
+        echo "  '$protected' la nhanh protected. Moi thay doi phai qua PR."
+        echo ""
+        echo "  Quy trinh dung:"
+        echo "    1. git checkout -b feat/<ten-tinh-nang>"
+        echo "    2. git add . && git commit -m 'feat: ...'"
+        echo "    3. git push origin feat/<ten-tinh-nang>"
+        echo "    4. Tao Pull Request tren GitHub"
+        echo "    5. Doi CI xanh -> Merge PR"
+        echo ""
+        echo "  Neu khan cap (hotfix): git push origin main --no-verify"
+        echo "======================================================================"
         echo ""
         exit 1
     fi
 done
+
+# ─── 2. Backend Python checks (chi chay neu co thay doi trong backend/) ───────
+
+BACKEND_CHANGED=$(git diff --cached --name-only --diff-filter=ACM HEAD 2>/dev/null | grep "^backend/src/" || true)
+# pre-push check tat ca files (khong chi staged), vi push ca nhieu commits
+BACKEND_FILES=$(git diff origin/$(git rev-parse --abbrev-ref HEAD) HEAD --name-only 2>/dev/null | grep "^backend/src/" || true)
+
+if [ -n "$BACKEND_FILES" ] || [ -d "backend/src" ]; then
+    echo "[pre-push] Backend Python files changed — running quality checks..."
+    echo ""
+
+    # Check if ruff is available
+    if ! command -v ruff > /dev/null 2>&1; then
+        # Try to find ruff in common locations
+        if [ -f "backend/.venv/bin/ruff" ]; then
+            RUFF="backend/.venv/bin/ruff"
+        elif [ -f "backend/.venv/Scripts/ruff.exe" ]; then
+            RUFF="backend/.venv/Scripts/ruff.exe"
+        else
+            echo "[pre-push] WARNING: ruff not found, skipping format/lint checks."
+            echo "           Run: pip install ruff"
+            exit 0
+        fi
+    else
+        RUFF="ruff"
+    fi
+
+    cd backend
+
+    # 2a. Format check
+    echo "  Checking format (ruff format --check src/)..."
+    if ! $RUFF format --check src/ 2>&1; then
+        echo ""
+        echo "======================================================================"
+        echo "  FORMAT ERROR: Code chua duoc format dung chuan."
+        echo ""
+        echo "  Fix nhanh: cd backend && ruff format src/"
+        echo "  Sau do:    git add -u && git commit --amend --no-edit"
+        echo "======================================================================"
+        exit 1
+    fi
+    echo "  Format: OK"
+
+    # 2b. Lint check
+    echo "  Checking lint (ruff check src/)..."
+    if ! $RUFF check src/ 2>&1; then
+        echo ""
+        echo "======================================================================"
+        echo "  LINT ERROR: Code co lint violations."
+        echo ""
+        echo "  Fix tu dong: cd backend && ruff check src/ --fix"
+        echo "  Sau do:      git add -u && git commit --amend --no-edit"
+        echo "======================================================================"
+        exit 1
+    fi
+    echo "  Lint: OK"
+
+    cd ..
+    echo ""
+    echo "[pre-push] All checks passed!"
+fi
 
 exit 0
