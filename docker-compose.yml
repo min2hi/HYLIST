@@ -64,11 +64,20 @@ services:
 
   # ─── FastAPI Backend ────────────────────────────────────────────────────────
   api:
-    build: ./backend
+    build:
+      context: .           # Repo root — can thiet de COPY ml/ vao container
+      dockerfile: backend/Dockerfile
     container_name: hylist-api
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      # Override localhost -> Docker service hostnames
+      DATABASE_URL: postgresql+asyncpg://hylist:hylist_password@postgres:5432/hylist_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SENTRY_DSN: ""  # Disable Sentry in local Docker (no DSN configured)
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,12 +85,47 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ─── Celery Worker (Async Tasks & ML Inference) ────────────────────────────
+  # ─── Celery Worker — ML Queue (lean: ONNX inference, khong co PyTorch) ──────
   celery_worker:
-    build: ./backend
+    build:
+      context: .           # Repo root — can thiet de COPY ml/ vao container
+      dockerfile: backend/Dockerfile
     container_name: hylist-worker
-    command: celery -A src.core.celery_app worker -l INFO
+    command: celery -A src.core.celery_app worker -l INFO -Q ml,default --concurrency=2
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hylist:hylist_password@postgres:5432/hylist_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SENTRY_DSN: ""
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─── NLP Worker — NLP Queue (fat: PyTorch + SetFit, Phase 3) ─────────────
+  # KHONG merge vao celery_worker vi PyTorch lam tang image size tu ~400MB len ~3GB
+  # Scale doc lap: docker compose up --scale nlp-worker=2
+  nlp-worker:
+    build:
+      context: .           # Repo root de COPY ca backend/ va ml/
+      dockerfile: backend/Dockerfile.nlp
+    container_name: hylist-nlp
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://hylist:hylist_password@postgres:5432/hylist_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      SENTRY_DSN: ""
+      # HuggingFace cache — mount volume nay de khong download lai moi restart
+      HF_HOME: /cache/huggingface
+      TRANSFORMERS_CACHE: /cache/huggingface
+    volumes:
+      - nlp_hf_cache:/cache/huggingface  # Persistent HuggingFace model cache
     depends_on:
       redis:
         condition: service_healthy
@@ -129,3 +173,4 @@ volumes:
   prometheus_data:
   grafana_data:
   mlflow_data:
+  nlp_hf_cache:  # HuggingFace model cache — persist qua restarts (tranh re-download)

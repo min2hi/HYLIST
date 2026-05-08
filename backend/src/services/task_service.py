@@ -67,6 +67,40 @@ class TaskService:
             )
 
         logger.info("task_created", id=str(task.id), org_id=str(user.org_id))
+
+        # Trigger background ML + NLP tasks (fire-and-forget — khong block response)
+        # ML: predict estimated hours → luu vao ml_predictions (shadow mode)
+        # NLP: auto-tag Bug/Feature/Urgent/Research → update task.tags + SSE event
+        task_data = {
+            "id": str(task.id),
+            "org_id": str(task.org_id),
+            "title": task.title,
+            "description": task.description or "",
+            "priority_score": task.priority_score,
+            "estimated_time": task.estimated_time,
+            "deadline_buffer_hrs": task.deadline_buffer_hrs,
+            "assignee_workload": task.assignee_workload,
+            "revision_count": 0,
+        }
+
+        try:
+            from ..workers.ml_worker import predict_task_priority  # noqa: PLC0415
+            from ..workers.nlp_worker import tag_task_with_nlp  # noqa: PLC0415
+
+            # Queue ml: ONNX inference (lean worker, nhanh)
+            predict_task_priority.delay(str(task.id), task_data)
+
+            # Queue nlp: SetFit inference (fat worker, co PyTorch)
+            tag_task_with_nlp.delay(
+                task_id=str(task.id),
+                task_title=task.title,
+                task_description=task.description or "",
+                org_id=str(task.org_id),
+            )
+        except Exception as e:
+            # Worker unavailable khong nen fail create task
+            logger.warning("task_background_dispatch_failed", task_id=str(task.id), error=str(e))
+
         return TaskOut.model_validate(task)
 
     # ── GET ALL ───────────────────────────────────────────────────────────────

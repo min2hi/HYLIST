@@ -68,25 +68,20 @@ dev = [
     "mypy>=1.10.0",
     "bandit>=1.7.0",             # Security linting
 
-    # ─── ML / Phase 2 ───────────────────────────────────────────────────
-    # Uncomment khi đến Phase 2 (Tuần 5)
-    # "xgboost>=2.0.0",
-    # "scikit-learn>=1.4.0",
-    # "mlflow>=2.13.0",
-    # "onnx>=1.16.0",
-    # "onnxruntime>=1.18.0",
-    # "skl2onnx>=1.16.0",
-    # "shap>=0.45.0",
-    # "great-expectations>=0.18.0",
-    # "dvc>=3.0.0",
-    # "pandas>=2.2.0",
-    # "numpy>=1.26.0",
+    # ─── ML / Phase 2 (inference only — no training deps) ──────────────────
+    # Nhung lib nay can cho ONNX inference trong API container:
+    "onnxruntime>=1.18.0",   # ONNX inference (ADR-002, ~10MB)
+    "numpy>=1.26.0",         # Feature array construction
+    "pandas>=2.2.0",         # TaskFeatureExtractor dung DataFrame
+    "shap>=0.45.0",          # SHAP explainability
+    # Training deps (chi can khi train model, KHONG can trong API container)
+    # Cai tren may dev hoac ML container:
+    # xgboost, scikit-learn, mlflow, onnx, skl2onnx, great-expectations, dvc
 
     # ─── NLP / Phase 3 ──────────────────────────────────────────────────
-    # Uncomment khi đến Phase 3 (Tuần 9)
-    # "setfit>=1.0.0",
-    # "transformers>=4.40.0",
-    # "torch>=2.0.0",
+    # PyTorch + SetFit KHONG duoc install vao API container (2GB+).
+    # Chung chi duoc cai trong nlp-worker (Dockerfile.nlp).
+    # API giao tiep voi nlp-worker qua Celery (fire-and-forget).
 
     # ─── Agent / Phase 4 ────────────────────────────────────────────────
     # Uncomment khi đến Phase 4 (Tuần 13)
@@ -128,9 +123,16 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# models/__init__.py dùng Unicode box-drawing comments (─────) để phân tách sections.
-# Các comment separator này dài hơn 100 chars là có chủ đích, không phải code thật.
+# models/__init__.py dung Unicode box-drawing comments (─────) de phan tach sections.
 "src/models/__init__.py" = ["E501"]
+# Test files: hardcoded passwords, broad Exception, unused setup vars are intentional
+"tests/**" = [
+    "S106",   # Hardcoded passwords in test fixtures are intentional
+    "B017",   # pytest.raises(Exception) acceptable for Pydantic validation tests
+    "F841",   # Unused vars in test setup are common and intentional
+    "E402",   # Imports after os.environ setup are intentional in conftest.py
+    "S101",   # assert in tests is expected
+]
 
 [tool.mypy]
 python_version = "3.12"

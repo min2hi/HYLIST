@@ -54,13 +54,25 @@ async def lifespan(app: FastAPI):
         host=settings.APP_HOST,
         port=settings.APP_PORT,
     )
-    # Load ONNX model vao memory khi app start
+
+    # 1. Initialize SSE EventBus (Redis Pub/Sub bridge)
+    from .core.redis import redis_client
+    from .core.sse import SSEEventBus
+
+    bus = SSEEventBus.init(redis_client)
+    await bus.start()
+    logger.info("sse_event_bus_ready")
+
+    # 2. Load ONNX model vao memory (graceful fallback neu model chua co)
     from .services.ml_service import ml_service
 
     ml_service.initialize()
+
     yield
+
+    # Shutdown: stop SSE bus truoc, roi dispose DB pool
     logger.info("app_shutting_down")
-    # Dispose connection pool to avoid "Event loop is closed" errors
+    await bus.stop()
     from .core.database import get_engine
 
     await get_engine().dispose()
@@ -104,12 +116,13 @@ app.add_middleware(
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
-from .api.v1 import auth, ml, projects, tasks  # noqa: E402
+from .api.v1 import auth, events, ml, projects, tasks  # noqa: E402
 
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(projects.router, prefix="/api/v1")
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(ml.router, prefix="/api/v1")
+app.include_router(events.router, prefix="/api/v1")
 
 
 # ─── Health Check (Kiểm tra thật sự — không trả static response) ─────────────

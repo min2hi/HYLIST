@@ -1,6 +1,7 @@
 """Unit tests — TaskService: validation, ML feature collection, status transitions."""
+
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -20,7 +21,6 @@ def make_user(role: str = "member") -> CurrentUser:
 
 
 class TestCreateTaskDto:
-
     def test_valid_task_dto(self):
         """CreateTaskDto validate đúng với fields bắt buộc."""
         dto = CreateTaskDto(
@@ -65,7 +65,6 @@ class TestCreateTaskDto:
 
 
 class TestUpdateTaskDto:
-
     def test_all_fields_optional(self):
         """UpdateTaskDto cho phép partial update (không có field nào cũng OK)."""
         dto = UpdateTaskDto()
@@ -94,7 +93,7 @@ class TestMLFeatureLogic:
         Nếu deadline trong tương lai → positive buffer.
         Nếu deadline đã qua → negative buffer (task overdue).
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         future_deadline = now + timedelta(hours=24)
         buffer = (future_deadline - now).total_seconds() / 3600
         assert buffer > 0
@@ -102,7 +101,7 @@ class TestMLFeatureLogic:
 
     def test_overdue_task_negative_buffer(self):
         """Task đã quá hạn có deadline_buffer_hrs âm."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         past_deadline = now - timedelta(hours=5)
         buffer = (past_deadline - now).total_seconds() / 3600
         assert buffer < 0
@@ -125,14 +124,17 @@ class TestMLFeatureLogic:
 class TestTaskStatusTransitions:
     """Verify allowed status transitions (business rule)."""
 
-    @pytest.mark.parametrize("from_status,to_status,allowed", [
-        ("todo", "in_progress", True),
-        ("in_progress", "review", True),
-        ("review", "done", True),
-        ("done", "todo", True),           # Allow reopen
-        ("cancelled", "todo", True),      # Allow reactivate
-        ("todo", "cancelled", True),
-    ])
+    @pytest.mark.parametrize(
+        "from_status,to_status,allowed",
+        [
+            ("todo", "in_progress", True),
+            ("in_progress", "review", True),
+            ("review", "done", True),
+            ("done", "todo", True),  # Allow reopen
+            ("cancelled", "todo", True),  # Allow reactivate
+            ("todo", "cancelled", True),
+        ],
+    )
     def test_status_enum_values(self, from_status, to_status, allowed):
         """TaskStatus enum có đủ values cần thiết."""
         assert from_status in [s.value for s in TaskStatus]

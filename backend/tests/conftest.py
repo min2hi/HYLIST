@@ -13,8 +13,8 @@ Kiến trúc:
 import asyncio
 import os
 import sys
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 # Thêm thư mục gốc repo (HYLIST/) vào sys.path để tests/ml/ có thể import ml/
 # conftest.py nằm tại: backend/tests/conftest.py
@@ -29,16 +29,24 @@ os.environ["APP_ENV"] = "test"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 
 
-import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
+from unittest.mock import MagicMock, patch  # noqa: E402
+
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import StaticPool  # noqa: E402
 
 SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 # ── Event Loop (session-scoped) ───────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def event_loop():
@@ -48,6 +56,7 @@ def event_loop():
 
 
 # ── Engine Setup (session-scoped, autouse) ────────────────────────────────────
+
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
 async def setup_test_db() -> AsyncGenerator[AsyncEngine, None]:
@@ -89,7 +98,35 @@ async def setup_test_db() -> AsyncGenerator[AsyncEngine, None]:
     await engine.dispose()
 
 
+# ── Mock Celery Tasks (autouse) ───────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def mock_celery_tasks():
+    """
+    Mock tat ca Celery task dispatches cho moi test.
+
+    Ly do: task_service.create() goi predict_task_priority.delay() va
+    tag_task_with_nlp.delay() -> neu khong mock, Celery co gang ket noi Redis
+    trong test -> treo indefinitely hoac raise ConnectionError.
+
+    Pattern: patch tai import site trong task_service (khong phai tai nguon)
+    dam bao hoat dong bat ke thu tu import.
+    """
+    mock_ml = MagicMock()
+    mock_nlp = MagicMock()
+    mock_ml.delay = MagicMock(return_value=None)
+    mock_nlp.delay = MagicMock(return_value=None)
+
+    with (
+        patch("src.workers.ml_worker.predict_task_priority", mock_ml),
+        patch("src.workers.nlp_worker.tag_task_with_nlp", mock_nlp),
+    ):
+        yield {"ml": mock_ml, "nlp": mock_nlp}
+
+
 # ── Table Cleanup (function-scoped, autouse) ──────────────────────────────────
+
 
 @pytest_asyncio.fixture(autouse=True)
 async def clean_tables(setup_test_db: AsyncEngine) -> AsyncGenerator[None, None]:
@@ -101,6 +138,7 @@ async def clean_tables(setup_test_db: AsyncEngine) -> AsyncGenerator[None, None]
     """
     yield
     from src.core.database import Base
+
     async with setup_test_db.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(table.delete())
@@ -108,16 +146,18 @@ async def clean_tables(setup_test_db: AsyncEngine) -> AsyncGenerator[None, None]
 
 # ── DB Session cho Unit Tests ─────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def db_session(setup_test_db: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Session riêng biệt cho mỗi unit test — inject trực tiếp vào Service."""
-    SessionLocal = async_sessionmaker(setup_test_db, expire_on_commit=False)
-    async with SessionLocal() as session:
+    """Session rieng biet cho moi unit test — inject truc tiep vao Service."""
+    session_factory = async_sessionmaker(setup_test_db, expire_on_commit=False)
+    async with session_factory() as session:
         yield session
         await session.rollback()
 
 
 # ── HTTP Client cho Integration Tests ────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
@@ -136,6 +176,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 # ── Shared Data Fixtures ───────────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def test_org(db_session: AsyncSession):
     from src.models import Organization
@@ -149,8 +190,8 @@ async def test_org(db_session: AsyncSession):
 
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession, test_org):
-    from src.models import User, UserRole
     from src.core.security import hash_password
+    from src.models import User, UserRole
 
     user = User(
         org_id=test_org.id,

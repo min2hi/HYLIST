@@ -1,11 +1,12 @@
 """Unit tests — ProjectService."""
+
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.core.security import CurrentUser
-from src.models import UserRole, ProjectStatus
+from src.models import ProjectStatus
 from src.schemas.project import CreateProjectDto, UpdateProjectDto
 from src.services.project_service import ProjectService
 
@@ -21,7 +22,6 @@ def make_user(role: str = "admin") -> CurrentUser:
 
 
 class TestProjectServiceCreate:
-
     @pytest.mark.asyncio
     async def test_create_project_success(self):
         """ProjectService.create() tạo project và trả về ProjectOut."""
@@ -56,7 +56,7 @@ class TestProjectServiceCreate:
         db.add = MagicMock(side_effect=lambda obj: added_objects.append(obj))
 
         # Service sẽ add project sau đó flush → ta inject mock vào
-        import src.services.project_service as svc_module
+
         original_flush = db.flush
 
         async def mock_flush():
@@ -85,7 +85,6 @@ class TestProjectServiceCreate:
 
 
 class TestProjectServiceRBAC:
-
     def test_viewer_cannot_delete(self):
         """Viewer role không được phép delete — RBAC check trong router."""
         viewer = make_user(role="viewer")
@@ -95,14 +94,14 @@ class TestProjectServiceRBAC:
 
     def test_admin_has_highest_privilege(self):
         """Admin có privilege cao nhất trong hierarchy."""
-        from src.core.auth import Role, _ROLE_HIERARCHY
+        from src.core.auth import _ROLE_HIERARCHY, Role
+
         assert _ROLE_HIERARCHY[Role.ADMIN] > _ROLE_HIERARCHY[Role.MANAGER]
         assert _ROLE_HIERARCHY[Role.MANAGER] > _ROLE_HIERARCHY[Role.MEMBER]
         assert _ROLE_HIERARCHY[Role.MEMBER] > _ROLE_HIERARCHY[Role.VIEWER]
 
 
 class TestProjectServiceMultiTenancy:
-
     def test_create_dto_validation(self):
         """CreateProjectDto validate đúng."""
         dto = CreateProjectDto(name="My Project", color="#3B82F6")

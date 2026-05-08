@@ -20,10 +20,10 @@ pytest.importorskip("pandas", reason="ML deps not installed (ml/requirements.txt
 pytest.importorskip("xgboost", reason="ML deps not installed (ml/requirements.txt)")
 pytest.importorskip("onnxruntime", reason="ML deps not installed (ml/requirements.txt)")
 
-import numpy as np  # noqa: E402
+
+from ml.features.task_extractor import TaskFeatureExtractor  # noqa: E402
 
 from src.services.ml_service import ml_service  # noqa: E402
-from ml.features.task_extractor import TaskFeatureExtractor  # noqa: E402
 
 # Thu muc chua model da train
 _MODELS_DIR = Path(__file__).parent.parent.parent.parent / "ml" / "models"
@@ -47,13 +47,13 @@ def xgb_booster():
     meta_path = _MODELS_DIR / "feature_names_v1.json"
     if not meta_path.exists():
         pytest.skip("Metadata khong ton tai.")
-    
+
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     ubj_path = meta.get("ubj_model_path")
-    
+
     if not ubj_path or not Path(ubj_path).exists():
         pytest.skip("UBJ model khong ton tai. Hay chay export_onnx.py truoc.")
-        
+
     booster = xgb.Booster()
     booster.load_model(ubj_path)
     return booster
@@ -106,16 +106,16 @@ async def test_inference_parity(onnx_ready, xgb_booster):
 
         # --- 4. So sanh Parity ---
         diff = abs(xgb_pred - onnx_pred)
-        
+
         # In ket qua de verify
         print(f"\nTask: {task_data['title']}")
         print(f"XGBoost: {xgb_pred:.6f}h")
         print(f"ONNX:    {onnx_pred:.6f}h")
         print(f"Diff:    {diff:.8f}h")
-        
+
         # ASSERT: Sai so giua 2 he thong phai be hon 0.01 gio
         assert diff < 0.01, f"Parity failed! Diff {diff}h vuot nguong 0.01h"
-        
+
         # Verify rang SHAP values cung duoc tra ve va on dinh
         if prediction.shap_values:
             assert len(prediction.shap_values) == len(extractor.FEATURE_NAMES)

@@ -103,24 +103,42 @@ class MLService:
         """
         Goi khi app startup (trong lifespan event).
         Load ONNX model vao memory.
+
+        Graceful degradation:
+          - pandas/onnxruntime khong co  → warn + fallback mode (KHONG crash app)
+          - ONNX model chua train        → warn + fallback mode
+          - Model load that bai          → warn + fallback mode
         """
         if self._initialized:
             return
 
-        # Lazy import — tranh keo pandas vao CI khi chi install backend deps
+        # Them ml/ repo root vao sys.path de import TaskFeatureExtractor
         _ml_root = Path(__file__).parent.parent.parent.parent  # HYLIST/
         if str(_ml_root) not in _sys.path:
             _sys.path.insert(0, str(_ml_root))
 
-        from ml.features.task_extractor import TaskFeatureExtractor  # noqa: PLC0415
+        # Lazy import TaskFeatureExtractor — guards against pandas not being installed.
+        # In CI (backend-only env) or container without pandas → graceful fallback.
+        try:
+            from ml.features.task_extractor import TaskFeatureExtractor  # noqa: PLC0415
 
-        self._extractor = TaskFeatureExtractor()
+            self._extractor = TaskFeatureExtractor()
+        except ImportError as e:
+            logger.warning(
+                "ml_deps_not_available",
+                error=str(e),
+                fallback="rule-based",
+                hint="Install pandas/numpy to enable ML inference",
+            )
+            self._initialized = True
+            return
 
         if not _ONNX_PATH.exists():
             logger.warning(
                 "ml_model_not_found",
                 path=str(_ONNX_PATH),
                 fallback="rule-based",
+                hint="Run 'make train' to generate the ONNX model",
             )
             self._initialized = True
             return
