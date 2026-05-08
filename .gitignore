@@ -12,10 +12,13 @@ Thumbs.db
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *.pyo
 .coverage
+**/.coverage
 *.egg-info/
+**/*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -29,6 +32,12 @@ ml/models/mlflow.db
 # MLflow tracking data (generated at runtime, too large for git)
 mlruns/
 ml/mlruns/
+
+# DVC-managed data files — track via .dvc files, not raw data
+ml/data/*.csv
+ml/data/*.json
+!ml/data/.gitkeep
+!ml/data/.gitignore
 
 # Temporary one-off scripts (should never be committed)
 _*.py
