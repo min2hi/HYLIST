@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     SECRET_KEY: str = "change-me-in-production"
     LOG_LEVEL: str = "INFO"
+    # CORS_ORIGINS: comma-separated list, e.g. "http://localhost:3000,https://app.hylist.io"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
 
     # ─── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql+asyncpg://hylist:hylist_password@localhost:5433/hylist_db"
@@ -64,6 +66,11 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.APP_ENV == "test"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS env var thành list."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 
 def get_settings() -> Settings:

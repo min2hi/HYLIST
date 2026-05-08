@@ -130,10 +130,7 @@ app.add_middleware(AuditLogMiddleware)  # Tuần 3: persist mọi state change v
 app.add_middleware(IdempotencyMiddleware)  # Tuần 3: chống tạo trùng khi client retry
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev
-        "http://localhost:8000",  # API self
-    ],
+    allow_origins=settings.cors_origins_list,  # Đọc từ CORS_ORIGINS env var
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
