@@ -1,5 +1,22 @@
 """
-Generate mock training data for NLP Tagging (Phase 3).
+HYLIST — NLP Bootstrap Training Data Generator (Phase 3)
+
+Sinh labeled data cho SetFit tagger (Bug / Feature / Urgent / Research).
+
+[LIFECYCLE — Bootstrap Only]
+  Hiện tại script dùng hardcoded templates (4 labels × 15 templates).
+  Khi nào nên chuyển sang real data:
+  - > 500 user đã tạo task thật → chạy export_real_data.py (Phase 4)
+  - Accuracy SetFit < 80% trên validation set thật → cần data thật
+
+[GIỚI HẠN của synthetic data này]
+  - 15 template/class → random.choices() tạo duplicate → model có thể overfit
+  - Text không phản ánh ngôn ngữ thật của user (tiếng Anh chuẩn, không typo)
+  - Chỉ đủ để cold-start, không đủ để production accuracy
+
+[KHÔNG XÓA] Vẫn cần để:
+  - Bootstrap NLP worker ở môi trường mới (không có DB prod)
+  - Regression test khi refactor feature extraction
 """
 
 import csv
