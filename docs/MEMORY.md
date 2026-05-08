@@ -45,6 +45,12 @@
 | 2026-05-05 | API client auto-gen từ openapi.yaml — KHÔNG viết tay `src/lib/api/` | Single source of truth, type-safe |
 | 2026-05-05 | ML features phải thiết kế từ Phase 1 (Tuần 1) | Không thể retro-fit features về sau |
 | 2026-05-05 | NLP Worker chạy container riêng (Phase 3) | PyTorch dependencies nặng — không bundle vào main API |
+| 2026-05-07 | `TaskFeatureExtractor` import lazy trong `MLService.initialize()` | Tránh kéo pandas vào CI backend-only env |
+| 2026-05-07 | Model files (.onnx, .ubj) KHÔNG commit vào git — dùng DVC | Binary files làm git history bloat |
+| 2026-05-07 | `get_db_context()` trong database.py cho Celery workers | Workers không có FastAPI Depends — cần context manager riêng |
+| 2026-05-07 | SetFit model lưu trên HuggingFace Hub (MVP) → DVC sau khi fine-tune | Giảm binary size trong repo, dễ version |
+| 2026-05-07 | **SetFit base model = `sentence-transformers/paraphrase-MiniLM-L3-v2`** | ~80MB, download khi nlp-worker startup, cache local sau đó |
+| 2026-05-07 | NLP Worker Docker memory limit: tăng Docker Desktop lên 8GB | nlp-worker cần ~1.5-2GB PyTorch, tổng stack ~3GB |
 
 ---
 
@@ -55,7 +61,7 @@
 | `backend/src/core/auth.py` | JWT + RBAC — ảnh hưởng toàn bộ authentication/authorization |
 | `backend/src/middleware/idempotency.py` | Sửa sai → duplicate records trong DB |
 | `ml/features/task_extractor.py` | **CRITICAL** — dùng chung train + serve; sửa sai → Training-Serving Skew |
-| `backend/src/core/database.py` | Connection pool config — sửa sai → connection leak hoặc timeout |
+| `backend/src/core/database.py` | Connection pool + `get_db_context()` — sửa sai → connection leak hoặc timeout |
 | `openapi.yaml` | Source of truth — sửa → phải chạy lại codegen frontend |
 | `alembic/versions/` | KHÔNG sửa migration đã commit — tạo migration mới |
 
@@ -69,4 +75,4 @@
 
 ---
 
-*Cập nhật lần cuối: 2026-05-05*
+*Cập nhật lần cuối: 2026-05-07 (Phase 2 hoàn thành)*
