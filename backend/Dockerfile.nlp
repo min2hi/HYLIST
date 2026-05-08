@@ -1,16 +1,12 @@
-# Dockerfile.nlp — NLP Worker container (Phase 3)
+# Dockerfile.nlp — NLP Worker (PyTorch + SetFit)
 #
-# Container rieng cho NLP tasks (SetFit + PyTorch).
-# KHONG dung Dockerfile nay cho API container vi PyTorch rat nang (~2GB).
+# Container RIENG cho NLP tasks.
+# API + ML worker KHONG dung file nay (tranh install 2GB+ PyTorch vao container nho).
 #
-# Architecture:
-#   hylist-api      → Dockerfile     (lean: FastAPI + ONNX Runtime, ~400MB)
-#   hylist-worker   → Dockerfile     (lean: Celery + ONNX Runtime, ~400MB)
-#   hylist-nlp      → Dockerfile.nlp (fat: Celery + PyTorch + SetFit, ~3GB)
-#
-# Queue routing:
-#   Dockerfile     worker: -Q ml,default
-#   Dockerfile.nlp worker: -Q nlp
+# Optimizations:
+#   - PyTorch CPU-only wheel (~800MB vs CUDA ~2GB)
+#   - Layer rieng cho torch va setfit de tranh OOM
+#   - HuggingFace cache mount de tranh re-download model
 
 FROM python:3.12-slim
 
@@ -18,39 +14,50 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_HOME=/app \
     PYTHONPATH=/app \
-    # HuggingFace cache dir — se duoc mount thanh volume de khong download lai
     HF_HOME=/cache/huggingface \
-    TRANSFORMERS_CACHE=/cache/huggingface
+    TRANSFORMERS_CACHE=/cache/huggingface \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DEFAULT_TIMEOUT=200
 
 WORKDIR $APP_HOME
 
-# System dependencies cho PyTorch + tokenizers
+# ── System deps ────────────────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    # tokenizers can rust compiler khi build tu source
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml truoc de cache busting
-COPY backend/pyproject.toml ./
+# ── Core backend deps (copy tu Dockerfile lean) ────────────────────────────────
+RUN pip install \
+    "fastapi>=0.111.0" \
+    "sqlalchemy>=2.0.0" \
+    "asyncpg>=0.29.0" \
+    "pydantic>=2.7.0" \
+    "pydantic-settings>=2.2.0" \
+    "redis[hiredis]>=5.0.0" \
+    "celery>=5.4.0" \
+    "structlog>=24.2.0" \
+    "python-jose[cryptography]>=3.3.0" \
+    "python-dotenv>=1.0.0"
 
-# Cai dat backend deps truoc (khong co NLP)
-RUN pip install --no-cache-dir .[dev]
+# ── PyTorch CPU-only (layer rieng — lon nhat, it thay doi nhat) ────────────────
+# CPU-only wheel tiet kiem ~1.2GB so voi CUDA default
+RUN pip install \
+    "torch>=2.0.0" \
+    --index-url https://download.pytorch.org/whl/cpu
 
-# Cai dat NLP deps rieng (PyTorch CPU-only, nhe hon GPU version)
-# --index-url cho PyTorch CPU tiet kiem ~1.5GB so voi default (CUDA)
-RUN pip install --no-cache-dir \
-    torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu \
-    transformers>=4.40.0 \
-    sentence-transformers>=2.7.0 \
-    setfit>=1.0.0 \
-    datasets>=2.19.0
+# ── NLP deps (phu thuoc vao torch da co) ──────────────────────────────────────
+RUN pip install \
+    "transformers>=4.40.0" \
+    "sentence-transformers>=2.7.0" \
+    "datasets>=2.19.0" \
+    "setfit>=1.0.0"
 
-# Copy source code
+# ── Source code ────────────────────────────────────────────────────────────────
 COPY backend/ .
 COPY ml/ ./ml/
 
-# Chay Celery worker chi xu ly queue "nlp"
+# Chi xu ly queue nlp — KHONG xu ly ml hoac default
 CMD ["celery", "-A", "src.core.celery_app", "worker", "-l", "INFO", "-Q", "nlp", "--concurrency=1"]
