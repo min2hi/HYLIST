@@ -29,18 +29,18 @@ os.environ["APP_ENV"] = "test"
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch  # noqa: E402
 
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import (
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import StaticPool  # noqa: E402
 
 SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -149,9 +149,9 @@ async def clean_tables(setup_test_db: AsyncEngine) -> AsyncGenerator[None, None]
 
 @pytest_asyncio.fixture
 async def db_session(setup_test_db: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
-    """Session riêng biệt cho mỗi unit test — inject trực tiếp vào Service."""
-    SessionLocal = async_sessionmaker(setup_test_db, expire_on_commit=False)
-    async with SessionLocal() as session:
+    """Session rieng biet cho moi unit test — inject truc tiep vao Service."""
+    session_factory = async_sessionmaker(setup_test_db, expire_on_commit=False)
+    async with session_factory() as session:
         yield session
         await session.rollback()
 

@@ -125,3 +125,58 @@ async def get_current_user(
         email=email,
         full_name=full_name,
     )
+
+
+async def require_auth_sse(
+    request: "Request",  # noqa: F821
+    token: str | None = None,  # Query param fallback for EventSource
+) -> CurrentUser:
+    """
+    Auth dependency cho SSE endpoints.
+
+    SSE (EventSource API) trong browser KHONG ho tro custom headers.
+    => Chap nhan token qua query param: /events/stream?token=<jwt>
+    => Uu tien: Authorization header > ?token= query param
+
+    Security note: token trong URL co the lo qua server logs.
+    Giam rui ro: JWT la short-lived (60 phut), va log nen duoc protected.
+    Thuc te: GitHub SSE, Stripe webhooks deu dung cach nay.
+    """
+    from fastapi.security import HTTPAuthorizationCredentials
+
+    # 1. Thu lay token tu Authorization header truoc
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        raw_token = auth_header[7:]
+    elif token:
+        # 2. Fallback: query param ?token=
+        raw_token = token
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Chua xac thuc — cung cap Bearer token hoac ?token= query param",
+        )
+
+    fake_credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials=raw_token)
+    return await get_current_user(fake_credentials)
+
+
+def require_role(*allowed_roles: str):
+    """
+    Dependency factory de kiem tra role.
+    Dung cho admin-only endpoints.
+
+    Usage:
+        @router.delete("/org")
+        async def delete_org(user = Depends(require_role("admin"))):
+    """
+
+    async def _check(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        if user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Yeu cau role: {', '.join(allowed_roles)}. Ban co role: {user.role}",
+            )
+        return user
+
+    return _check

@@ -135,27 +135,33 @@ def tag_task_with_nlp(
 def _publish_tag_event(task_id: str, org_id: str, tag: str, confidence: float) -> None:
     """
     Publish SSE event len Redis Pub/Sub.
-    SSE endpoint (/api/v1/events/{task_id}) se nhan va push ve frontend.
-    Tach ra function rieng de de mock trong tests.
+    SSE endpoint (/api/v1/events/...) se nhan va push ve frontend.
+    Dung asyncio.run() vi day la sync context (Celery task).
     """
+
+    import redis as sync_redis
+
+    from src.core.config import settings  # noqa: PLC0415
+
     try:
-        import redis
+        # Dung sync redis client vi Celery worker khong co async event loop
+        r_sync = sync_redis.from_url(settings.REDIS_URL)
 
-        from src.core.config import settings  # noqa: PLC0415
-
-        r = redis.from_url(settings.REDIS_URL)
         import json
+
+        from src.core.sse import CHANNEL_ORG, CHANNEL_TASK  # noqa: PLC0415
 
         payload = json.dumps(
             {
                 "event": "tags_updated",
                 "task_id": task_id,
-                "org_id": org_id,
-                "data": {"tag": tag, "confidence": confidence},
+                "data": {"tag": tag, "confidence": round(confidence, 3)},
             }
         )
-        # Channel naming: "sse:{task_id}" — SSE endpoint subscribe channel nay
-        r.publish(f"sse:{task_id}", payload)
+        r_sync.publish(CHANNEL_TASK.format(task_id=task_id), payload)
+        r_sync.publish(CHANNEL_ORG.format(org_id=org_id), payload)
+        r_sync.close()
+
         logger.info("nlp_sse_event_published", task_id=task_id, tag=tag)
     except Exception as e:
         # Publish that bai khong nen anh huong toi result chinh

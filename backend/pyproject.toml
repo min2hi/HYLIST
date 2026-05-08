@@ -123,9 +123,16 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# models/__init__.py dùng Unicode box-drawing comments (─────) để phân tách sections.
-# Các comment separator này dài hơn 100 chars là có chủ đích, không phải code thật.
+# models/__init__.py dung Unicode box-drawing comments (─────) de phan tach sections.
 "src/models/__init__.py" = ["E501"]
+# Test files: hardcoded passwords, broad Exception, unused setup vars are intentional
+"tests/**" = [
+    "S106",   # Hardcoded passwords in test fixtures are intentional
+    "B017",   # pytest.raises(Exception) acceptable for Pydantic validation tests
+    "F841",   # Unused vars in test setup are common and intentional
+    "E402",   # Imports after os.environ setup are intentional in conftest.py
+    "S101",   # assert in tests is expected
+]
 
 [tool.mypy]
 python_version = "3.12"
