@@ -6,12 +6,15 @@ on:
   pull_request:
     branches: [main, develop]
 
-# Không chạy CI khi push thẳng lên main.
-# main chỉ nhận code qua PR đã được CI approve.
+# Cancel in-progress runs on new push to same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # ─── Security Scan ──────────────────────────────────────────────────────────
   security:
-    name: 🔐 Security Scan
+    name: 🔐 Secret Scanning
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +24,34 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # ─── Lint & Type Check ──────────────────────────────────────────────────────
+  lint:
+    name: 🔍 Lint & Format
+    needs: [security]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true          # Cache ~/.cache/uv between runs
+          cache-dependency-glob: "backend/uv.lock"
+
+      - name: Sync lint dependencies
+        working-directory: backend
+        run: uv sync --frozen --only-group lint
+
+      - name: Ruff lint
+        working-directory: backend
+        run: uv run ruff check src/ tests/
+
+      - name: Ruff format check
+        working-directory: backend
+        run: uv run ruff format --check src/ tests/
+
+  # ─── Backend Tests ──────────────────────────────────────────────────────────
   test:
     name: 🧪 Backend Tests
     needs: [security]
@@ -29,79 +60,78 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          version: "latest"
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
 
-      - name: Install dependencies
+      - name: Sync test dependencies
         working-directory: backend
-        run: |
-          pip install -e ".[dev]"
-          pip install aiosqlite
+        # Install core + test group only — NO ML/NLP heavy deps in CI
+        # ml_service uses graceful degradation → tests pass without onnxruntime
+        run: uv sync --frozen --group test
 
       - name: Run tests with coverage
         working-directory: backend
         env:
-          # DATABASE_URL không cần thiết với lazy engine + override_engine()
-          # nhưng giữ lại để đảm bảo settings.py không throw validation error
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SECRET_KEY: "ci-test-secret-key-not-for-production"
           APP_ENV: "test"
-          REDIS_URL: "redis://localhost:6379"
+          REDIS_URL: "redis://localhost:6379/0"
         run: |
-          pytest tests/ \
+          uv run pytest tests/unit/ tests/integration/ \
             --cov=src \
             --cov-report=xml \
             --cov-report=term-missing \
             --cov-fail-under=65 \
-            -v
+            -q --no-header
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: always()
         with:
           file: backend/coverage.xml
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: backend
+          fail_ci_if_error: false
 
-  lint:
-    name: 🔍 Lint & Type Check
-    needs: [security]
+  # ─── Lock File Integrity ────────────────────────────────────────────────────
+  lock-check:
+    name: 🔒 Lock File Integrity
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
-          cache: pip
+          version: "latest"
 
-      - name: Install dev dependencies
+      - name: Verify uv.lock is up-to-date
         working-directory: backend
-        run: pip install -e ".[dev]"
+        # Fails if pyproject.toml was changed without running 'uv lock'
+        run: uv lock --check
 
-      - name: Ruff lint
-        working-directory: backend
-        run: ruff check src/
-
-      - name: Ruff format check
-        working-directory: backend
-        run: ruff format --check src/
-
-  # Job tổng hợp — Branch Protection chỉ cần check job này.
-  # Nếu tất cả jobs trên xanh → ci-pass xanh → PR được merge.
+  # ─── CI Gate ────────────────────────────────────────────────────────────────
+  # Branch Protection chi can check job nay.
+  # Neu tat ca jobs xanh → ci-pass xanh → PR duoc merge.
   ci-pass:
     name: ✅ CI Pass
-    needs: [test, lint]
+    needs: [test, lint, lock-check]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check all jobs passed
         run: |
-          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.lint.result }}" != "success" ]]; then
+          if [[ "${{ needs.test.result }}"       != "success" || \
+                "${{ needs.lint.result }}"       != "success" || \
+                "${{ needs.lock-check.result }}" != "success" ]]; then
             echo "❌ CI failed — PR cannot be merged"
+            echo "  test:       ${{ needs.test.result }}"
+            echo "  lint:       ${{ needs.lint.result }}"
+            echo "  lock-check: ${{ needs.lock-check.result }}"
             exit 1
           fi
           echo "✅ All checks passed — PR is ready to merge"

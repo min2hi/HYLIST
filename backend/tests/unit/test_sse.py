@@ -9,14 +9,13 @@ Test strategy:
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
 from src.core.sse import (
     CHANNEL_ORG,
     CHANNEL_TASK,
-    HEARTBEAT_INTERVAL,
     SSEEventBus,
 )
 
@@ -39,7 +38,6 @@ def bus(mock_redis):
 
 
 class TestSSEEventBusPublish:
-
     @pytest.mark.asyncio
     async def test_publish_calls_redis(self, bus, mock_redis):
         """publish() phai goi redis.publish voi dung channel va payload."""
@@ -68,7 +66,6 @@ class TestSSEEventBusPublish:
 
 
 class TestSSEEventBusDispatch:
-
     @pytest.mark.asyncio
     async def test_dispatch_routes_to_correct_channel(self, bus):
         """_dispatch() phai dua event vao dung queue theo channel."""
@@ -123,7 +120,6 @@ class TestSSEEventBusDispatch:
 
 
 class TestSSEEventBusSubscribe:
-
     @pytest.mark.asyncio
     async def test_subscribe_yields_events_then_disconnects(self, bus):
         """subscribe() yields events cho den khi client disconnect."""
@@ -176,7 +172,7 @@ class TestSSEEventBusSubscribe:
             async with asyncio.timeout(2.0):
                 async for _ in gen:
                     pass
-        except (StopAsyncIteration, asyncio.TimeoutError):
+        except (TimeoutError, StopAsyncIteration):
             pass
 
         # Channel should be cleaned up
@@ -184,7 +180,6 @@ class TestSSEEventBusSubscribe:
 
 
 class TestSSEEventBusInit:
-
     def test_get_raises_if_not_initialized(self):
         SSEEventBus._instance = None
         with pytest.raises(RuntimeError, match="not initialized"):
