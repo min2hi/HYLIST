@@ -25,6 +25,8 @@ from typing import Any
 import numpy as np
 import structlog
 
+from ..core.resilience import CircuitBreakerOpen, ml_circuit, with_timeout
+
 # TaskFeatureExtractor duoc import lazy ben trong initialize()
 # Tranh keo pandas vao CI khi collect test (pandas nam trong ml/requirements.txt)
 
@@ -190,77 +192,85 @@ class MLService:
     async def predict(self, task_data: dict[str, Any]) -> PredictionResult:
         """
         Chay ONNX inference cho 1 task.
-
-        Args:
-            task_data: dict chua cac fields cua task
-                       (title, description, priority_score, deadline,
-                        assignee_workload, revision_count, tags, ...)
-
-        Returns:
-            PredictionResult voi predicted_hours va confidence
+        Boc trong circuit breaker: neu ONNX fail 5 lan → fast-fail bang fallback.
         """
         t_start = time.perf_counter()
 
-        # Neu model chua load -> fallback rule-based
         if self._session is None:
             return self._rule_based_fallback(task_data, t_start)
 
         try:
-            # Feature extraction (dung TaskFeatureExtractor giong training)
-            features = self._extractor.transform(task_data)  # shape (1, 13), np.ndarray
-
-            # ONNX Runtime chi nhan float32
-            features_f32 = features.astype(np.float32)
-
-            # Inference
-            preds = self._session.run(None, {self._input_name: features_f32})
-            predicted_hours = float(preds[0].flatten()[0])
-
-            # Clip: actual_time < 0 la vo nghia
-            predicted_hours = max(0.1, predicted_hours)
-
-            latency_ms = (time.perf_counter() - t_start) * 1000
-
-            # SHAP Explanations
-            shap_values = None
-            shap_base = None
-            if self._explainer is not None:
-                # TreeExplainer nhan numpy array truc tiep
-                shap_res = self._explainer(features_f32)
-                # values.shape = (1, 13) -> lay row 0
-                sv = shap_res.values[0]
-                base = shap_res.base_values[0]
-                shap_base = float(base)
-                # Map feature values (lam tron 4 chu so de JSON nhe)
-                shap_values = {
-                    feat: round(float(val), 4)
-                    for feat, val in zip(self._extractor.FEATURE_NAMES, sv, strict=False)
-                }
-
-            # Confidence: heuristic don gian (co the dung SHAP variance sau)
-            # Low priority + no deadline = low confidence
-            priority = float(task_data.get("priority_score", 3))
-            confidence = min(0.95, 0.5 + (priority - 1) * 0.1)
-
-            logger.info(
-                "ml_prediction",
-                predicted_hours=round(predicted_hours, 2),
-                confidence=round(confidence, 3),
-                latency_ms=round(latency_ms, 2),
+            # Circuit breaker + 5s timeout — khong bao gio treo mai
+            result = await ml_circuit.call(
+                self._run_inference(task_data, t_start),
+                operation="onnx_predict",
             )
+            return result
 
-            return PredictionResult(
-                predicted_hours=predicted_hours,
-                confidence=confidence,
-                model_version=self._model_version,
-                latency_ms=latency_ms,
-                shap_values=shap_values,
-                shap_base_value=shap_base,
-            )
+        except CircuitBreakerOpen:
+            # Circuit dang mo → fast-fail ngay, khong cho doi
+            logger.warning("ml_circuit_open_fallback", metrics=ml_circuit.metrics)
+            return self._rule_based_fallback(task_data, t_start)
 
         except Exception as e:
             logger.error("ml_inference_failed", error=str(e))
             return self._rule_based_fallback(task_data, t_start)
+
+    async def _run_inference(self, task_data: dict[str, Any], t_start: float) -> PredictionResult:
+        """Tach logic inference ra ham rieng de circuit breaker wrap duoc."""
+        # Feature extraction
+        features = self._extractor.transform(task_data)  # shape (1, 13), np.ndarray
+        features_f32 = features.astype(np.float32)
+
+        # ONNX inference (blocking CPU, nhung nhanh < 5ms)
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        preds = await loop.run_in_executor(
+            None,
+            lambda: self._session.run(None, {self._input_name: features_f32}),
+        )
+        predicted_hours = max(0.1, float(preds[0].flatten()[0]))
+        latency_ms = (time.perf_counter() - t_start) * 1000
+
+        # SHAP (optional, non-critical — timeout rieng 2s)
+        shap_values = None
+        shap_base = None
+        if self._explainer is not None:
+            try:
+                shap_res = await with_timeout(
+                    loop.run_in_executor(None, lambda: self._explainer(features_f32)),
+                    seconds=2.0,
+                    operation="shap_explain",
+                )
+                sv = shap_res.values[0]
+                shap_base = float(shap_res.base_values[0])
+                shap_values = {
+                    feat: round(float(val), 4)
+                    for feat, val in zip(self._extractor.FEATURE_NAMES, sv, strict=False)
+                }
+            except Exception as e:
+                logger.warning("shap_explain_failed", error=str(e))
+
+        # Confidence heuristic
+        priority = float(task_data.get("priority_score", 3))
+        confidence = min(0.95, 0.5 + (priority - 1) * 0.1)
+
+        logger.info(
+            "ml_prediction",
+            predicted_hours=round(predicted_hours, 2),
+            confidence=round(confidence, 3),
+            latency_ms=round(latency_ms, 2),
+        )
+
+        return PredictionResult(
+            predicted_hours=predicted_hours,
+            confidence=confidence,
+            model_version=self._model_version,
+            latency_ms=latency_ms,
+            shap_values=shap_values,
+            shap_base_value=shap_base,
+        )
 
     def _rule_based_fallback(self, task_data: dict[str, Any], t_start: float) -> PredictionResult:
         """
