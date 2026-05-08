@@ -22,7 +22,6 @@ pytest.importorskip("sklearn", reason="ML deps not installed (ml/requirements.tx
 from datetime import UTC, datetime, timedelta  # noqa: E402
 
 import numpy as np  # noqa: E402
-
 from ml.features.task_extractor import FEATURE_VERSION, TaskFeatureExtractor  # noqa: E402
 
 
@@ -64,7 +63,6 @@ def test_feature_names_count(extractor):
 
 
 class TestDictTransform:
-
     def test_returns_ndarray_shape(self, extractor):
         """Dict input → np.ndarray shape (1, 13)."""
         task = make_task()
@@ -105,7 +103,6 @@ class TestDictTransform:
 
 
 class TestDeadlineFeatures:
-
     def test_no_deadline(self, extractor):
         """Không có deadline → has_deadline=0, is_overdue=0, buffer=24h default."""
         task = make_task(deadline=None)
@@ -151,7 +148,6 @@ class TestDeadlineFeatures:
 
 
 class TestTagsParsing:
-
     def test_tags_list(self, extractor):
         """Tags dạng list (từ DB)."""
         task = make_task(tags=["Bug", "Urgent"])
@@ -206,7 +202,6 @@ class TestTagsParsing:
 
 
 class TestAssigneeWorkload:
-
     def test_workload_extracted(self, extractor):
         """assignee_workload được extract đúng."""
         task = make_task(assignee_workload=0.75)
@@ -226,7 +221,6 @@ class TestAssigneeWorkload:
 
 
 class TestDataFrameTransform:
-
     def test_returns_dataframe(self, extractor):
         """DataFrame input → DataFrame output."""
         df = pd.DataFrame([make_task(), make_task(priority_score=2)])
@@ -262,7 +256,6 @@ class TestDataFrameTransform:
 
 
 class TestValidateInput:
-
     def test_no_warnings_for_complete_input(self, extractor):
         """Input đầy đủ → không có warnings."""
         task = make_task()

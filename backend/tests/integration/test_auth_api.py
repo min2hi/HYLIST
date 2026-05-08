@@ -1,5 +1,7 @@
 """Integration tests — Auth API endpoints."""
+
 import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -10,16 +12,18 @@ def unique_email(prefix: str = "user") -> str:
 
 
 class TestAuthRegister:
-
     @pytest.mark.asyncio
     async def test_register_success(self, client: AsyncClient):
         """POST /auth/register → 201 với user data."""
-        response = await client.post("/api/v1/auth/register", json={
-            "email": unique_email("register"),
-            "password": "SecurePass123",
-            "full_name": "Integration User",
-            "org_name": f"Corp-{uuid.uuid4().hex[:6]}",
-        })
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": unique_email("register"),
+                "password": "SecurePass123",
+                "full_name": "Integration User",
+                "org_name": f"Corp-{uuid.uuid4().hex[:6]}",
+            },
+        )
         assert response.status_code == 201, response.text
         data = response.json()
         assert data["success"] is True
@@ -28,36 +32,44 @@ class TestAuthRegister:
     @pytest.mark.asyncio
     async def test_register_invalid_email(self, client: AsyncClient):
         """POST /auth/register với email không hợp lệ → 422."""
-        response = await client.post("/api/v1/auth/register", json={
-            "email": "not-an-email",
-            "password": "SecurePass123",
-            "full_name": "Test",
-            "org_name": "Test Corp",
-        })
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "not-an-email",
+                "password": "SecurePass123",
+                "full_name": "Test",
+                "org_name": "Test Corp",
+            },
+        )
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_register_password_too_short(self, client: AsyncClient):
         """POST /auth/register với password < 8 ký tự → 422."""
-        response = await client.post("/api/v1/auth/register", json={
-            "email": unique_email(),
-            "password": "123",
-            "full_name": "Test",
-            "org_name": "Test Corp",
-        })
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": unique_email(),
+                "password": "123",
+                "full_name": "Test",
+                "org_name": "Test Corp",
+            },
+        )
         assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_register_missing_fields(self, client: AsyncClient):
         """POST /auth/register thiếu field bắt buộc → 422."""
-        response = await client.post("/api/v1/auth/register", json={
-            "email": unique_email(),
-        })
+        response = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": unique_email(),
+            },
+        )
         assert response.status_code == 422
 
 
 class TestAuthLogin:
-
     @pytest.mark.asyncio
     async def test_login_success(self, client: AsyncClient):
         """POST /auth/login với đúng credentials → 200 + tokens."""
@@ -66,19 +78,25 @@ class TestAuthLogin:
         password = "SecurePass123"
 
         # Tạo tài khoản trước
-        reg = await client.post("/api/v1/auth/register", json={
-            "email": email,
-            "password": password,
-            "full_name": "Login User",
-            "org_name": org,
-        })
+        reg = await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "full_name": "Login User",
+                "org_name": org,
+            },
+        )
         assert reg.status_code == 201
 
         # Đăng nhập
-        response = await client.post("/api/v1/auth/login", json={
-            "email": email,
-            "password": password,
-        })
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+        )
         assert response.status_code == 200, response.text
         data = response.json()
         assert data["success"] is True
@@ -88,14 +106,16 @@ class TestAuthLogin:
     @pytest.mark.asyncio
     async def test_login_missing_fields(self, client: AsyncClient):
         """POST /auth/login thiếu password → 422."""
-        response = await client.post("/api/v1/auth/login", json={
-            "email": unique_email(),
-        })
+        response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": unique_email(),
+            },
+        )
         assert response.status_code == 422
 
 
 class TestAuthMe:
-
     @pytest.mark.asyncio
     async def test_me_with_valid_token(self, client: AsyncClient):
         """GET /auth/me với token hợp lệ → 200 + profile."""
@@ -104,15 +124,22 @@ class TestAuthMe:
         password = "SecurePass123"
 
         # Tạo tài khoản và lấy token
-        await client.post("/api/v1/auth/register", json={
-            "email": email,
-            "password": password,
-            "full_name": "Me User",
-            "org_name": org,
-        })
-        login = await client.post("/api/v1/auth/login", json={
-            "email": email, "password": password,
-        })
+        await client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": email,
+                "password": password,
+                "full_name": "Me User",
+                "org_name": org,
+            },
+        )
+        login = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": email,
+                "password": password,
+            },
+        )
         token = login.json()["data"]["access_token"]
 
         response = await client.get(

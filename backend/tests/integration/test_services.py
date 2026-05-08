@@ -2,6 +2,7 @@
 Integration tests cho TaskService và ProjectService — DB thật (SQLite in-memory).
 Các test này verify business logic thực tế, không mock DB.
 """
+
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -9,7 +10,7 @@ import pytest
 import pytest_asyncio
 
 from src.core.security import CurrentUser
-from src.models import Organization, Project, Task, TaskStatus, User, UserRole
+from src.models import Organization, User, UserRole
 from src.schemas.project import CreateProjectDto, UpdateProjectDto
 from src.schemas.task import CreateTaskDto, UpdateTaskDto
 from src.services.project_service import ProjectService
@@ -71,7 +72,6 @@ async def project_in_db(db_session, org_and_user):
 
 
 class TestProjectServiceIntegration:
-
     @pytest.mark.asyncio
     async def test_create_project_success(self, db_session, org_and_user):
         """Tạo project và verify data trong DB."""
@@ -155,7 +155,6 @@ class TestProjectServiceIntegration:
 
 
 class TestTaskServiceIntegration:
-
     @pytest_asyncio.fixture
     async def project(self, db_session, org_and_user):
         """Tạo Project cho task tests."""
