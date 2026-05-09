@@ -6,6 +6,8 @@ coverage/
 .env
 .env.local
 .env.production
+!.env.example          # Template file — should be committed (no secrets)
+!**/.env.example
 *.log
 .DS_Store
 Thumbs.db
