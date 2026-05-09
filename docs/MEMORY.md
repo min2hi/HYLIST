@@ -67,17 +67,18 @@
 
 ---
 
-## Blockers & Vấn Đề Đang Mở
 
-> Cập nhật khi gặp blocker chưa resolve
+## Blockers & Van De Dang Mo
 
-- *(Thêm vào đây khi gặp blocker)*
+- **[W11] C drive gan day (0.5GB)**: Can don truoc khi train SetFit model (can ~2GB PyTorch cache)
+  - Fix: `uv config set cache-dir D:\uv-cache` sau khi co disk space
 
 ---
 
-*Cập nhật lần cuối: 2026-05-07 (Phase 2 hoàn thành)*
+*Cap nhat lan cuoi: 2026-05-09 (Phase 3 W11 Frontend + SSE + Resilience hoan thanh)*
 
-| 2026-05-08 | SetFit training data generated: ml/data/nlp_training.csv (200 samples, 50/class) | Bootstrap data dung de cold-start NLP model |
-| 2026-05-08 | Frontend auth: Zustand + js-cookie (cookie key: hylist_token), KHONG dung localStorage | XSS safer; SSE can doc token qua getToken() |
-| 2026-05-08 | api client (client.ts) basePath = API_URL + /api/v1, auth paths dung native fetch thay vi openapi-fetch vi union type inference issue | openapi-fetch body la union cua tat ca POST endpoints, khong type-safe cho individual endpoints |
-| 2026-05-08 | CORS_ORIGINS la env var, doc vao config.py qua cors_origins_list property | Khong hardcode origins |
+| 2026-05-08 | SetFit training data generated: ml/data/nlp_training.csv (200 samples) | Bootstrap NLP |
+| 2026-05-08 | useSSE(url, handlers, enabled) 3-arg signature | Match KanbanBoard usage |
+| 2026-05-08 | getAuthClient(token) thay interceptor | Type-safe, simpler |
+| 2026-05-08 | RFC 7807 Problem Details (core/errors.py) | Chuan Stripe/GitHub |
+| 2026-05-08 | Circuit breaker: ml(5s), redis(2s), nlp(10s) | Fail fast > hang |
