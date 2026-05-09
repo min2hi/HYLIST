@@ -5,8 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { api } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/auth/session";
+import { useProject } from "@/lib/project/context";
 import { useSSE } from "@/hooks/useSSE";
 import TaskCard from "./TaskCard";
 import type { components } from "@/lib/api/types";
@@ -32,24 +32,30 @@ type CreateTaskForm = z.infer<typeof createTaskSchema>;
 export default function KanbanBoard() {
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
+  const { currentProject, projects, isLoading: projectLoading } = useProject();
   const [updatingTaskIds, setUpdatingTaskIds] = useState<Set<string>>(new Set());
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // ── Fetch tasks ──────────────────────────────────────────────────────────────
-  const { data: response, isLoading } = useQuery({
-    queryKey: ["tasks"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/tasks", {});
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!token,
-  });
-  const tasks: Task[] = (response?.data as Task[]) ?? [];
-
-  // ── SSE Real-time ─────────────────────────────────────────────────────────────
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+  // ── Fetch tasks (filtered by current project) ─────────────────────────────
+  const { data: response, isLoading: tasksLoading } = useQuery({
+    queryKey: ["tasks", currentProject?.id],
+    queryFn: async () => {
+      const res = await fetch(
+        `${apiBase}/api/v1/tasks?project_id=${currentProject!.id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error("Failed to fetch tasks");
+      return res.json();
+    },
+    enabled: !!token && !!currentProject,
+  });
+  const tasks: Task[] = (response?.data as Task[]) ?? [];
+  const isLoading = projectLoading || tasksLoading;
+
+  // ── SSE Real-time ─────────────────────────────────────────────────────────────
+  
   useSSE(
     `/api/v1/events/stream`,
     {
@@ -109,7 +115,6 @@ export default function KanbanBoard() {
 
   const createMutation = useMutation({
     mutationFn: async (values: CreateTaskForm) => {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
       const Cookies = (await import("js-cookie")).default;
       const authToken = Cookies.get("hylist_token") ?? "";
       const res = await fetch(`${apiBase}/api/v1/tasks`, {
@@ -125,14 +130,14 @@ export default function KanbanBoard() {
           priority_score: values.priority_score,
           estimated_time: values.estimated_time ?? 2,
           status: "todo",
+          project_id: currentProject!.id,  // ← Fix: real project_id
         }),
       });
       if (!res.ok) throw new Error("Failed to create task");
       return res.json();
     },
-
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["tasks", currentProject?.id] });
       setShowCreateModal(false);
       reset();
     },
@@ -156,10 +161,19 @@ export default function KanbanBoard() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">Kanban Board</h2>
+      <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-white">
+              {currentProject?.name ?? "Kanban Board"}
+            </h2>
+            {projects.length > 1 && (
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-400">
+                {projects.length} projects
+              </span>
+            )}
+          </div>
           <p className="mt-0.5 text-sm text-slate-500">
-            {tasks.length} tasks · AI tagging enabled
+            {tasks.length} tasks · AI tagging
             <span className="ml-2 inline-flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
               <span className="text-green-400 text-xs">Live</span>

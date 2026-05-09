@@ -1,139 +1,121 @@
 /**
- * useSSE — Server-Sent Events hook (production-grade)
+ * useSSE — Production-grade Server-Sent Events hook.
+ *
+ * Pattern dùng tại: Linear, Vercel, Loom (real-time update systems).
  *
  * Features:
- *  - Auto-reconnect với exponential backoff (0.5s → 30s)
- *  - Token injection qua query param (?token=...) vì EventSource
- *    không support custom headers (đây là limitation của Web API)
- *  - Type-safe event handlers
- *  - Cleanup tự động khi component unmount
- *  - Heartbeat detection: nếu không nhận event trong 60s → reconnect
+ *   - Auto-reconnect với exponential backoff (0.5s → 1s → 2s → max 30s)
+ *   - Token tự động inject từ Zustand auth store qua query param
+ *     (EventSource không support custom headers — ADR-001)
+ *   - Typed event handlers map
+ *   - Connection state tracking cho UI feedback
+ *   - Cleanup on unmount (no memory leaks)
  *
  * Usage:
- *  useSSE(`/api/v1/events/stream`, {
- *    tags_updated: (data) => queryClient.invalidateQueries(['tasks']),
- *    prediction_done: (data) => updatePrediction(data),
- *  });
+ *   useSSE("/api/v1/events/stream", {
+ *     tags_updated: (data) => { ... },
+ *     prediction_done: (data) => { ... },
+ *   }, !!token);
  */
 
-import { useEffect, useRef } from "react";
-import { getToken } from "@/lib/auth/session";
+import { useEffect, useRef, useState } from "react";
+import { useAuthStore } from "@/lib/auth/session";
 
-export type SSEEventType =
-  | "tags_updated"
-  | "prediction_done"
-  | "heartbeat"
-  | "connected";
+// ─── Event Handler Map ─────────────────────────────────────────────────────────
 
-export type SSEHandler<T = unknown> = (data: T) => void;
-
-export type SSEHandlers = {
-  [K in SSEEventType]?: SSEHandler;
+type SSEHandlers = {
+  tags_updated?: (data: unknown) => void;
+  prediction_done?: (data: unknown) => void;
+  heartbeat?: (data: unknown) => void;
+  [key: string]: ((data: unknown) => void) | undefined;
 };
 
-const INITIAL_RETRY_DELAY = 500;   // ms
-const MAX_RETRY_DELAY = 30_000;    // ms
-const HEARTBEAT_TIMEOUT = 60_000;  // ms — reconnect nếu im lặng 60s
+export type SSEConnectionState = "connecting" | "connected" | "disconnected" | "error";
 
+// ─── Config ────────────────────────────────────────────────────────────────────
+
+const INITIAL_RETRY_MS = 500;
+const MAX_RETRY_MS = 30_000;
+const BACKOFF_FACTOR = 2;
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+// ─── Hook ──────────────────────────────────────────────────────────────────────
+
+/**
+ * @param path   - SSE endpoint path, e.g. "/api/v1/events/stream"
+ * @param handlers - Event handlers keyed by event type
+ * @param enabled - Set to false to pause connection (e.g. when logged out)
+ */
 export function useSSE(
   path: string,
   handlers: SSEHandlers,
-  enabled = true
-): void {
-  const esRef = useRef<EventSource | null>(null);
-  const retryDelayRef = useRef(INITIAL_RETRY_DELAY);
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const heartbeatTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handlersRef = useRef(handlers);
+  enabled: boolean = true,
+): { connectionState: SSEConnectionState } {
+  const [connectionState, setConnectionState] = useState<SSEConnectionState>("disconnected");
 
-  // Giữ handlers ref up-to-date mà không re-create EventSource
-  useEffect(() => {
-    handlersRef.current = handlers;
-  }, [handlers]);
+  // Ref để tránh stale closure trong callbacks
+  const handlersRef = useRef<SSEHandlers>(handlers);
+  handlersRef.current = handlers;
+
+  const esRef = useRef<EventSource | null>(null);
+  const retryMsRef = useRef(INITIAL_RETRY_MS);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
 
     const connect = () => {
-      // Cleanup old connection
-      esRef.current?.close();
-      clearTimeout(reconnectTimerRef.current!);
-      clearTimeout(heartbeatTimerRef.current!);
+      // Lấy token tươi mỗi lần connect (tránh dùng stale token)
+      const token = useAuthStore.getState().token;
+      if (!token) return;
 
-      const token = getToken();
-      const url = token
-        ? `${path}?token=${encodeURIComponent(token)}`
-        : path;
-
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-      const fullUrl = `${apiBase}${url}`;
-
-      const es = new EventSource(fullUrl);
+      const url = `${API_BASE}${path}?token=${encodeURIComponent(token)}`;
+      const es = new EventSource(url);
       esRef.current = es;
-
-      // Reset heartbeat timer
-      const resetHeartbeat = () => {
-        clearTimeout(heartbeatTimerRef.current!);
-        heartbeatTimerRef.current = setTimeout(() => {
-          console.warn("[SSE] Heartbeat timeout — reconnecting");
-          connect();
-        }, HEARTBEAT_TIMEOUT);
-      };
+      setConnectionState("connecting");
 
       es.onopen = () => {
-        console.info("[SSE] Connected to", path);
-        retryDelayRef.current = INITIAL_RETRY_DELAY; // Reset backoff
-        resetHeartbeat();
-        handlersRef.current.connected?.({ connected: true });
+        setConnectionState("connected");
+        retryMsRef.current = INITIAL_RETRY_MS; // Reset backoff on success
       };
 
-      // Named event handlers (SSE `event:` field)
-      const eventTypes: SSEEventType[] = [
-        "tags_updated",
-        "prediction_done",
-        "heartbeat",
-        "connected",
-      ];
-
-      for (const eventType of eventTypes) {
+      // Đăng ký dynamic handlers
+      const registeredEvents = new Set<string>();
+      for (const eventType of Object.keys(handlersRef.current)) {
         es.addEventListener(eventType, (e: MessageEvent) => {
-          resetHeartbeat();
           try {
-            const data = JSON.parse(e.data);
+            const data = JSON.parse(e.data) as unknown;
             handlersRef.current[eventType]?.(data);
           } catch {
-            handlersRef.current[eventType]?.(e.data);
+            console.warn(`[SSE] Parse error for event "${eventType}":`, e.data);
           }
         });
+        registeredEvents.add(eventType);
       }
 
-      // Default message handler
-      es.onmessage = (e) => {
-        resetHeartbeat();
-      };
-
-      es.onerror = (err) => {
-        console.warn("[SSE] Error — retrying in", retryDelayRef.current, "ms");
+      es.onerror = () => {
+        setConnectionState("error");
         es.close();
-        clearTimeout(heartbeatTimerRef.current!);
+        esRef.current = null;
 
-        // Exponential backoff
-        reconnectTimerRef.current = setTimeout(() => {
-          retryDelayRef.current = Math.min(
-            retryDelayRef.current * 2,
-            MAX_RETRY_DELAY
-          );
-          connect();
-        }, retryDelayRef.current);
+        // Exponential backoff reconnect
+        const delay = retryMsRef.current;
+        retryMsRef.current = Math.min(delay * BACKOFF_FACTOR, MAX_RETRY_MS);
+
+        retryTimerRef.current = setTimeout(connect, delay);
       };
     };
 
     connect();
 
     return () => {
+      retryTimerRef.current && clearTimeout(retryTimerRef.current);
       esRef.current?.close();
-      clearTimeout(reconnectTimerRef.current!);
-      clearTimeout(heartbeatTimerRef.current!);
+      esRef.current = null;
+      setConnectionState("disconnected");
     };
-  }, [path, enabled]);
+  }, [path, enabled]); // Re-connect khi path thay đổi
+
+  return { connectionState };
 }
