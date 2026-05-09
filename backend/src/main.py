@@ -17,12 +17,14 @@ from contextlib import asynccontextmanager
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from .core.config import settings
+from .core.errors import register_exception_handlers
 from .core.logging import get_logger, setup_logging
 from .middleware.audit_log import AuditLogMiddleware
 from .middleware.idempotency import IdempotencyMiddleware
@@ -30,6 +32,28 @@ from .middleware.idempotency import IdempotencyMiddleware
 # Setup logging trước tất cả
 setup_logging()
 logger = get_logger(__name__)
+
+# ─── Custom Business Metrics (Prometheus) ────────────────────────────────────
+# Default FastAPI metrics: request count + latency (per endpoint)
+# Business metrics: domain-specific signals for alerting
+TASKS_CREATED = Counter(
+    "hylist_tasks_created_total",
+    "Total tasks created",
+    ["org_id"],  # Label: theo doi per-org
+)
+ML_PREDICTION_LATENCY = Histogram(
+    "hylist_ml_prediction_seconds",
+    "ML prediction latency in seconds",
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+)
+NLP_QUEUE_DEPTH = Gauge(
+    "hylist_nlp_queue_depth",
+    "Number of pending NLP tagging tasks",
+)
+SSE_CONNECTIONS = Gauge(
+    "hylist_sse_connections_active",
+    "Number of active SSE connections",
+)
 
 # Sentry error tracking
 if settings.SENTRY_DSN:
@@ -92,10 +116,13 @@ app = FastAPI(
     redoc_url="/redoc" if not settings.is_production else None,
     openapi_url="/openapi.json" if not settings.is_production else None,
 )
-
 # Rate limiter exception handler
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore
+
+# RFC 7807 Problem Details — override default {"detail": "..."} error format
+# Dung boi: Stripe, GitHub, Shopify — client code check 'type' URI
+register_exception_handlers(app)
 
 # ─── Middleware (thứ tự quan trọng — thực thi từ dưới lên theo Starlette) ────
 # Request flow: CORS → Idempotency → AuditLog → Router
@@ -103,10 +130,7 @@ app.add_middleware(AuditLogMiddleware)  # Tuần 3: persist mọi state change v
 app.add_middleware(IdempotencyMiddleware)  # Tuần 3: chống tạo trùng khi client retry
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Next.js dev
-        "http://localhost:8000",  # API self
-    ],
+    allow_origins=settings.cors_origins_list,  # Đọc từ CORS_ORIGINS env var
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],

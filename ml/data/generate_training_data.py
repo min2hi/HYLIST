@@ -1,15 +1,27 @@
 """
-HYLIST Phase 1 - Week 4: ML Mock Data Generator
+HYLIST — Synthetic Training Data Generator (Bootstrap)
 
-Sinh 10,000 synthetic tasks phục vụ cho việc train model XGBoost (Phase 2).
-Yêu cầu phân phối (Distribution Requirements):
+[LIFECYCLE NOTE]
+  Giai đoạn    | Data strategy
+  ------------ | -----------------------------------------------
+  0 user       | Script này sinh 10,000 synthetic tasks (hiện tại)
+  > 100 user   | Export từ DB + blend với synthetic (50/50)
+  > 1,000 user | Real data chiếm 90%, synthetic dùng augment edge case
+  Mature       | Script vẫn giữ — dùng để bootstrap môi trường mới / test
+
+[KHÔNG XÓA FILE NÀY] Dù có user thật, vẫn cần script này để:
+  - Train model ở môi trường CI/CD mà không có DB prod
+  - Tạo data cho unit test ML pipeline
+  - Benchmark regression khi thay đổi features
+
+Phân phối (Distribution Requirements):
 1. Không dùng random uniform (vì không phản ánh thực tế).
 2. priority_score: Phân phối Pareto (nhiều task thường, ít task quan trọng).
-3. estimated_time: Log-normal distribution (đa số task tốn ít thời gian 1-4h, rất ít task dài >20h).
-4. actual_time: 
+3. estimated_time: Log-normal distribution (đa số 1-4h, rất ít >20h).
+4. actual_time:
    - Đa số mọi người underestimate (actual > estimated).
    - Task càng to càng dễ trễ hạn.
-5. status: Tỉ lệ done (70%), in_progress (15%), todo (10%), cancelled (5%).
+5. status: Tỉ lệ done (65%), in_progress (15%), review (5%), todo (10%), cancelled (5%).
 6. tags: [Bug, Feature, Urgent, Research] - có liên quan đến priority và actual_time.
 """
 
@@ -27,10 +39,12 @@ Faker.seed(42)
 fake = Faker()
 
 NUM_TASKS = 10000
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "data")
+# File đã nằm trong ml/data/ → output cùng thư mục
+OUTPUT_DIR = os.path.dirname(__file__)
 OUTPUT_FILE = os.path.join(OUTPUT_DIR, "tasks_training.csv")
 
-def generate_mock_data():
+
+def generate_training_data():
     print(f"Generating {NUM_TASKS} mock tasks...")
     
     # 1. IDs & Cơ bản
@@ -178,4 +192,4 @@ def generate_mock_data():
     print(f"Underestimation: {(completed['actual_time'].mean() / completed['estimated_time'].mean() - 1) * 100:.1f}%")
 
 if __name__ == "__main__":
-    generate_mock_data()
+    generate_training_data()

@@ -1,6 +1,9 @@
 #!/bin/bash
-OWNER="{{GITHUB_OWNER}}"
-REPO="{{GITHUB_REPO}}"
+# Run once after creating the GitHub repo to enable branch protection.
+# Requires: GitHub CLI (gh) installed and authenticated.
+# Usage: bash docs/setup-branch-protection.sh
+OWNER="min2hi"
+REPO="HYLIST"
 
 echo "🔒 Setting up branch protection for $OWNER/$REPO..."
 

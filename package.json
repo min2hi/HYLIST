@@ -1,5 +1,5 @@
 {
-  "name": "{{PROJECT_SLUG}}",
+  "name": "hylist",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,7 +12,7 @@
     "lint-staged": "^15.0.0"
   },
   "lint-staged": {
-    "{{BACKEND_DIR}}/**/*.{ts,js}": ["eslint --fix --max-warnings=0"],
-    "{{FRONTEND_DIR}}/**/*.{ts,tsx,js,jsx}": ["eslint --fix --max-warnings=0"]
+    "backend/**/*.py": ["ruff check --fix", "ruff format --check"],
+    "frontend/**/*.{ts,tsx,js,jsx}": ["eslint --fix --max-warnings=0"]
   }
-
+}

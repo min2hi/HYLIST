@@ -1,56 +1,77 @@
-# Dockerfile.nlp — NLP Worker container (Phase 3)
+# Dockerfile.nlp — NLP Worker (PyTorch CPU + SetFit)
 #
-# Container rieng cho NLP tasks (SetFit + PyTorch).
-# KHONG dung Dockerfile nay cho API container vi PyTorch rat nang (~2GB).
+# Container RIENG biet cho NLP queue.
+# API va ML worker KHONG dung file nay.
 #
-# Architecture:
-#   hylist-api      → Dockerfile     (lean: FastAPI + ONNX Runtime, ~400MB)
-#   hylist-worker   → Dockerfile     (lean: Celery + ONNX Runtime, ~400MB)
-#   hylist-nlp      → Dockerfile.nlp (fat: Celery + PyTorch + SetFit, ~3GB)
-#
-# Queue routing:
-#   Dockerfile     worker: -Q ml,default
-#   Dockerfile.nlp worker: -Q nlp
+# Cung dung multi-stage voi uv:
+#   - builder: install core + ml + nlp groups
+#   - runtime: chi co .venv (khong co build tools)
 
-FROM python:3.12-slim
+# ─── Stage 1: Dependency installer ────────────────────────────────────────────
+FROM python:3.12-slim AS builder
 
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    APP_HOME=/app \
-    PYTHONPATH=/app \
-    # HuggingFace cache dir — se duoc mount thanh volume de khong download lai
-    HF_HOME=/cache/huggingface \
-    TRANSFORMERS_CACHE=/cache/huggingface
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-WORKDIR $APP_HOME
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 
-# System dependencies cho PyTorch + tokenizers
+# System deps (tokenizers can build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
-    # tokenizers can rust compiler khi build tu source
     git \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy pyproject.toml truoc de cache busting
-COPY backend/pyproject.toml ./
+WORKDIR /app
 
-# Cai dat backend deps truoc (khong co NLP)
-RUN pip install --no-cache-dir .[dev]
+COPY backend/pyproject.toml backend/uv.lock ./
 
-# Cai dat NLP deps rieng (PyTorch CPU-only, nhe hon GPU version)
-# --index-url cho PyTorch CPU tiet kiem ~1.5GB so voi default (CUDA)
-RUN pip install --no-cache-dir \
-    torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu \
-    transformers>=4.40.0 \
-    sentence-transformers>=2.7.0 \
-    setfit>=1.0.0 \
-    datasets>=2.19.0
+# Config PyTorch CPU-only qua uv sources
+# Thay vi download CUDA (2GB+), chi download CPU wheel (~800MB)
+RUN uv sync \
+    --frozen \
+    --no-install-project \
+    --no-group dev \
+    --no-group training \
+    --no-group agent \
+    --group ml \
+    --group nlp \
+    # Override PyTorch index voi CPU-only wheel
+    --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Copy source code
 COPY backend/ .
 COPY ml/ ./ml/
 
-# Chay Celery worker chi xu ly queue "nlp"
-CMD ["celery", "-A", "src.core.celery_app", "worker", "-l", "INFO", "-Q", "nlp", "--concurrency=1"]
+RUN uv sync \
+    --frozen \
+    --no-group dev \
+    --no-group training \
+    --no-group agent \
+    --group ml \
+    --group nlp \
+    --extra-index-url https://download.pytorch.org/whl/cpu
+
+# ─── Stage 2: Runtime image ───────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    HF_HOME=/cache/huggingface \
+    TRANSFORMERS_CACHE=/cache/huggingface \
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/ml ./ml
+
+# Chi xu ly queue nlp
+CMD ["celery", "-A", "src.core.celery_app", "worker", \
+     "-l", "INFO", "-Q", "nlp", "--concurrency=1"]
