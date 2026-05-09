@@ -22,11 +22,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check access token cookie (set khi login thành công)
-  // NOTE: access token trong memory, nhưng ta dùng một short-lived
-  // "session indicator" cookie để middleware có thể check mà không cần
-  // gọi API (Edge Runtime không có access đến Zustand store)
-  const sessionCookie = request.cookies.get("hylist_session");
+  // Check auth cookie — key phải match session.ts: Cookies.set("hylist_token", ...)
+  const sessionCookie = request.cookies.get("hylist_token");
 
   if (!sessionCookie?.value) {
     const loginUrl = new URL("/login", request.url);
